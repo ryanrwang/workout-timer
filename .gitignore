@@ -1,0 +1,15 @@
+# User data (contains password hashes)
+data/users/*.json
+
+# Environment files
+.env
+.env.*
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+
+# OS files
+Thumbs.db
+.DS_Store

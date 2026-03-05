@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Timer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+    /* Push footer to bottom when content is short */
+    .app-container { min-height: 100dvh; }
+    main { flex: 1; }
+
+    /* Back-to-Apps logo */
+    .app-footer {
+        display: flex;
+        justify-content: center;
+        padding: 8px 0;
+    }
+    .rw-back-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .rw-back-logo {
+        width: 24px;
+        height: 24px;
+        opacity: 0.25;
+        transition: opacity 0.2s ease, transform 0.3s ease;
+    }
+    @media (hover: hover) {
+        .rw-back-logo:hover {
+            opacity: 0.6;
+        }
+        .app-footer .rw-back-logo:hover {
+            animation: rw-spin 0.6s ease;
+        }
+    }
+    @keyframes rw-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header>
+            <div class="header-left">
+                <h1 id="app-title" style="cursor: pointer;">Workout<span class="highlight">Tracker</span></h1>
+                <span id="sync-indicator" class="sync-indicator hidden" title="Cloud Sync"><span class="material-icons-outlined">cloud_done</span></span>
+            </div>
+            <div id="header-controls">
+                <div class="settings-dropdown">
+                    <button id="settings-btn" class="btn-icon" title="Menu"><span
+                            class="material-icons-outlined">settings</span></button>
+                    <div id="settings-menu" class="dropdown-menu hidden">
+                        <button id="reset-all-btn" class="dropdown-item mobile-only"><span
+                                class="material-icons-outlined">restart_alt</span> Reset All</button>
+                        <button id="view-history-btn" class="dropdown-item"><span
+                                class="material-icons-outlined">history</span> History</button>
+                        <button id="mute-toggle" class="dropdown-item"><span
+                                class="material-icons-outlined">volume_up</span> Sound On</button>
+                        <button id="view-archive-btn" class="dropdown-item"><span
+                                class="material-icons-outlined">inventory_2</span> Archive</button>
+                        <button id="backup-btn" class="dropdown-item"><span class="material-icons-outlined">save</span>
+                            Import/Export</button>
+                        <button id="sync-btn" class="dropdown-item"><span class="material-icons-outlined">cloud</span>
+                            Cloud Sync</button>
+                        <div class="dropdown-divider"></div>
+                        <button id="delete-all-data-btn" class="dropdown-item danger-text"><span
+                                class="material-icons-outlined">delete_forever</span> Delete All Data</button>
+                    </div>
+                </div>
+                <button id="reset-all-btn-desktop" class="btn secondary small desktop-only">Reset All</button>
+                <button id="create-group-btn" class="btn primary small desktop-only">Add Workout</button>
+                <button id="create-group-btn-mobile" class="btn primary small btn-icon-square mobile-only" title="Add Workout"><span class="material-icons-outlined">add</span></button>
+            </div>
+        </header>
+
+        <main>
+            <!-- VIEW: HOME (List of Workout Groups) -->
+            <section id="view-home" class="view active">
+                <div id="groups-list" class="card-list">
+                    <!-- Groups injected here -->
+                    <div class="empty-state">No routines yet. Create one to get started!</div>
+                </div>
+            </section>
+
+            <!-- VIEW: EDIT GROUP (Create/Edit a Routine) -->
+            <section id="view-edit" class="view hidden">
+                <div class="section-header">
+                    <button id="cancel-edit-btn" class="btn secondary">Done</button>
+                    <h2 id="edit-view-title">New Routine</h2>
+                    <button id="archive-btn" class="btn danger-outline small">Archive</button>
+                </div>
+
+                <div class="form-group">
+                    <input type="text" id="group-name-input" class="large-input"
+                        placeholder="Routine Name (e.g., Push Day)">
+                </div>
+
+                <div class="list-header"
+                    style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                    <h3>Exercises</h3>
+                    <button id="add-exercise-btn" class="btn secondary small">+ Add</button>
+                </div>
+
+                <div id="edit-exercise-list" class="card-list">
+                    <!-- Exercise items injected here -->
+                </div>
+            </section>
+
+            <!-- VIEW: ACTIVE WORKOUT -->
+            <section id="view-workout" class="view hidden">
+                <!-- Exercise Pills Navigation -->
+                <div id="exercise-pills" class="exercise-pills"></div>
+
+                <div id="workout-header" class="workout-header glass-panel">
+                    <!-- Shared hero area: animates between collapsed row & expanded block -->
+                    <div id="workout-header-hero" class="wh-hero">
+                        <img id="wh-thumb" class="wh-thumb" src="" alt="">
+                        <div class="wh-text">
+                            <div class="wh-name-row">
+                                <div class="wh-name" id="wh-exercise-name">Bench Press</div>
+                                <button id="edit-current-exercise" class="btn-icon edit-ex-icon wh-edit-btn" title="Edit exercise"><span
+                                        class="material-icons-outlined">edit</span></button>
+                            </div>
+                            <div class="wh-meta" id="wh-exercise-meta">Dumbbell • 50 lbs</div>
+                        </div>
+                        <span id="wh-chevron" class="wh-chevron material-icons-outlined">expand_more</span>
+                    </div>
+                    <!-- Expandable details (guide link, full image, actions) -->
+                    <div class="wh-details">
+                        <div class="wh-details-inner">
+                            <a id="current-exercise-link" href="#" target="_blank"
+                                class="details-text guide-link hidden">View Guide &rarr;</a>
+                            <img id="current-exercise-thumb" class="workout-thumb hidden" src="" alt="Exercise Thumbnail">
+                            <div class="workout-header-actions">
+                                <button id="complete-exercise-btn" class="btn secondary small">Complete Set</button>
+                                <button id="reset-exercise-btn" class="btn secondary small">Reset Set</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sets Row with Nav -->
+                <div class="sets-section">
+                    <div class="sets-row">
+                        <div id="prev-exercise-nav" class="exercise-nav"></div>
+                        <div id="sets-container" class="sets-grid"></div>
+                        <div id="next-exercise-nav" class="exercise-nav"></div>
+                    </div>
+                </div>
+
+                <!-- Reps + Timer -->
+                <section class="timer-section glass-panel">
+                    <span id="target-reps-display" class="reps-badge"></span>
+                    <div class="timer-display-large" id="active-timer">00:00</div>
+                </section>
+
+                <div class="controls-row">
+                    <button id="back-btn" class="btn secondary large-btn back-btn"><span
+                            class="material-icons-outlined">arrow_back</span></button>
+                    <button id="action-btn" class="btn primary large-btn">START SET</button>
+                </div>
+            </section>
+        </main>
+        <footer class="app-footer">
+            <a href="/apps/" title="Back to Apps" class="rw-back-link">
+                <img src="/images/icon-rw.svg" alt="Back to Apps" class="rw-back-logo">
+            </a>
+        </footer>
+    </div>
+
+    <!-- MODAL: ADD/EDIT EXERCISE -->
+    <div id="exercise-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <h3 id="modal-title">Add Exercise</h3>
+            <div class="form-grid">
+                <div class="form-group full">
+                    <label>Name</label>
+                    <input type="text" id="ex-name" placeholder="e.g. Bench Press">
+                </div>
+                <!-- Media Inputs -->
+                <div class="form-group full">
+                    <label>Link</label>
+                    <input type="text" id="ex-link" placeholder="https://youtube.com/...">
+                </div>
+
+                <div class="form-group">
+                    <label>Tool</label>
+                    <select id="ex-tool">
+                        <option value="Dumbbell">Dumbbell</option>
+                        <option value="Bodyweight">Bodyweight</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Weight</label>
+                    <div class="input-group">
+                        <input type="number" id="ex-weight" placeholder="0">
+                        <select id="ex-unit" class="unit-toggle">
+                            <option value="lbs">lbs</option>
+                            <option value="kg">kg</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row-compact">
+                    <div class="form-group">
+                        <label>Sets</label>
+                        <input type="number" id="ex-sets" value="3">
+                    </div>
+                    <div class="form-group">
+                        <label>Reps</label>
+                        <input type="number" id="ex-reps" placeholder="10">
+                    </div>
+                </div>
+                <div class="form-row-compact">
+                    <div class="form-group">
+                        <label>Rest between reps (s)</label>
+                        <input type="number" id="ex-rest" value="60">
+                    </div>
+                    <div class="form-group">
+                        <label>Rest after exercise (s)</label>
+                        <input type="number" id="ex-between-rest" value="120">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions" style="justify-content: space-between;">
+                <button id="delete-ex-modal" class="btn danger-outline hidden">Delete</button>
+                <div style="display: flex; gap: 12px;">
+                    <button id="cancel-ex-modal" class="btn secondary">Cancel</button>
+                    <button id="save-ex-modal" class="btn primary">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: IMPORT/EXPORT -->
+    <div id="backup-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h3>Import / Export</h3>
+                <button id="close-backup" class="close-btn"><span class="material-icons-outlined">close</span></button>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Save your data to a file or load from a backup.</p>
+            <div class="backup-actions">
+                <button id="export-btn" class="btn primary">Export Data</button>
+                <label for="import-file" class="btn outline">Import Data</label>
+                <input type="file" id="import-file" accept=".json" hidden>
+            </div>
+        </div>
+    </div>
+
+    <!-- HISTORY MODAL -->
+    <div id="history-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2>Workout History</h2>
+                <button id="close-history" class="close-btn"><span class="material-icons-outlined">close</span></button>
+            </div>
+            <div id="history-list" class="history-list"></div>
+            <button id="clear-history" class="link-btn danger">Clear All History</button>
+        </div>
+    </div>
+
+    <!-- ARCHIVE MODAL -->
+    <div id="archive-modal" class="modal hidden">
+        <div class="modal-content glass-panel modal-wide">
+            <div class="modal-header">
+                <h2>Archived Routines</h2>
+                <button id="close-archive" class="close-btn"><span class="material-icons-outlined">close</span></button>
+            </div>
+            <div class="archive-bulk-actions hidden" id="archive-bulk-actions">
+                <label class="archive-select-all-label">
+                    <input type="checkbox" id="archive-select-all" class="archive-checkbox">
+                    <span>Select All</span>
+                </label>
+                <div class="archive-bulk-right">
+                    <button id="bulk-restore-btn" class="btn secondary small">Restore Selected</button>
+                    <button id="bulk-delete-btn" class="btn danger-outline small">Delete Selected</button>
+                </div>
+            </div>
+            <div id="archive-list" class="history-list"></div>
+        </div>
+    </div>
+
+    <!-- MODAL: CLOUD SYNC -->
+    <div id="sync-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h3>Cloud Sync</h3>
+                <button id="close-sync" class="close-btn"><span class="material-icons-outlined">close</span></button>
+            </div>
+
+            <!-- Not logged in -->
+            <div id="sync-guest" class="sync-section">
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Sync your data across devices. Create an account or link an existing one.</p>
+
+                <div class="sync-form-group">
+                    <label>Display Name</label>
+                    <input type="text" id="sync-name" placeholder="e.g. John" maxlength="50">
+                </div>
+                <div class="sync-form-group">
+                    <label>PIN (4+ characters)</label>
+                    <input type="password" id="sync-pin" placeholder="e.g. 1234" minlength="4">
+                </div>
+                <button id="sync-register-btn" class="btn primary" style="width:100%;">Create Account</button>
+
+                <div class="sync-divider"><span>or link existing account</span></div>
+
+                <div class="sync-form-group">
+                    <label>Device Link / Token</label>
+                    <input type="text" id="sync-token-input" placeholder="Paste your device link or token">
+                </div>
+                <div class="sync-form-group">
+                    <label>PIN</label>
+                    <input type="password" id="sync-login-pin" placeholder="Enter your PIN">
+                </div>
+                <button id="sync-login-btn" class="btn outline" style="width:100%;">Link This Device</button>
+            </div>
+
+            <!-- Logged in -->
+            <div id="sync-logged-in" class="sync-section hidden">
+                <div class="sync-status-badge">
+                    <span class="material-icons-outlined">cloud_done</span>
+                    <span>Synced as <strong id="sync-display-name"></strong></span>
+                </div>
+                <div class="backup-actions">
+                    <button id="sync-copy-link" class="btn primary">Copy Device Link</button>
+                    <button id="sync-now-btn" class="btn outline">Sync Now</button>
+                </div>
+                <button id="sync-logout-btn" class="link-btn danger" style="margin-top: 12px;">Log Out</button>
+            </div>
+
+            <p id="sync-error" class="sync-error hidden"></p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
