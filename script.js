@@ -312,14 +312,31 @@ function renderHome() {
             const totalSets = parseInt(group.exercises[ei]?.sets) || 3;
             return sets && sets.length >= totalSets;
         });
-        const completedDateHtml = allExercisesComplete && completedDate
-            ? ` <span class="card-completed"><span class="material-icons-outlined">check_circle</span> ${completedDate.getFullYear()}/${String(completedDate.getMonth() + 1).padStart(2, '0')}/${String(completedDate.getDate()).padStart(2, '0')} @ ${completedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()}</span>`
-            : '';
+        let completedDateHtml = '';
+        if (allExercisesComplete && completedDate) {
+            const diffMin = Math.floor((Date.now() - completedDate.getTime()) / 60000);
+            let ago;
+            if (diffMin < 1) ago = 'just now';
+            else if (diffMin < 60) ago = `${diffMin}m ago`;
+            else if (diffMin < 1440) ago = `${Math.floor(diffMin / 60)}h ${diffMin % 60}m ago`;
+            else ago = `${Math.floor(diffMin / 1440)}d ${Math.floor((diffMin % 1440) / 60)}h ago`;
+            // Color from yellow → orange → red over 1–7 days
+            const diffDays = diffMin / 1440;
+            let agoStyle = '';
+            if (diffDays >= 1) {
+                const t = Math.min((diffDays - 1) / 6, 1); // 0 at 1d, 1 at 7d
+                const hue = 50 - t * 50; // 50 (yellow) → 0 (red)
+                const sat = 90 + t * 10; // 90% → 100%
+                const lit = 55 - t * 10; // 55% → 45%
+                agoStyle = ` style="color: hsl(${hue}, ${sat}%, ${lit}%); font-weight: 500"`;
+            }
+            completedDateHtml = `<span class="card-completed-icon"><span class="material-icons-outlined">check_circle</span></span><span class="card-completed">${completedDate.getFullYear()}/${String(completedDate.getMonth() + 1).padStart(2, '0')}/${String(completedDate.getDate()).padStart(2, '0')} @ ${completedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()} &middot; <span${agoStyle}>${ago}</span></span>`;
+        }
 
         card.innerHTML = `
             <div class="card-top-row">
                 <div class="drag-handle"><span class="material-icons-outlined">drag_indicator</span></div>
-                <div class="card-title">${group.name} <span class="card-count">&bull; ${group.exercises.length}</span>${completedDateHtml}</div>
+                <div class="card-title${completedDateHtml ? ' is-completed' : ''}"><span class="card-name">${group.name} <span class="card-count">&bull; ${group.exercises.length}</span></span>${completedDateHtml}</div>
                 <div class="card-menu-wrapper">
                     <button class="btn-icon card-menu-btn" onclick="event.stopPropagation(); toggleCardMenu(this)"><span class="material-icons-outlined">more_vert</span></button>
                     <div class="card-dropdown-menu hidden">

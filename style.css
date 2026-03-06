@@ -1229,7 +1229,20 @@ select:focus {
     font-size: 1.2rem;
 }
 
-/* Completed label inline */
+/* Completed check icon — inline on desktop, repositioned on mobile */
+.card-completed-icon {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.card-completed-icon .material-icons-outlined {
+    font-size: 1rem;
+    color: var(--primary);
+}
+
+/* Completed date label inline */
 .card-completed {
     display: inline-flex;
     align-items: center;
@@ -1237,13 +1250,8 @@ select:focus {
     font-size: 0.75rem;
     font-weight: 400;
     color: var(--text-muted);
-    margin-left: 8px;
+    margin-left: 4px;
     vertical-align: middle;
-}
-
-.card-completed .material-icons-outlined {
-    font-size: 1rem;
-    color: var(--primary);
 }
 
 /* Wider archive modal */
@@ -1743,6 +1751,32 @@ select:focus {
     .backup-actions .btn,
     .backup-actions label {
         width: 100%;
+    }
+
+    /* Completed: icon moves left of name, date wraps below */
+    .card-title.is-completed {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 6px;
+    }
+
+    .card-title.is-completed .card-completed-icon {
+        order: -1;
+        margin-left: 0;
+    }
+
+    .card-title.is-completed .card-name {
+        order: 0;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .card-title.is-completed .card-completed {
+        order: 1;
+        width: 100%;
+        margin-left: 0;
+        margin-top: 4px;
     }
 }
 
