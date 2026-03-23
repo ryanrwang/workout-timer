@@ -260,10 +260,17 @@
 
     <!-- HISTORY MODAL -->
     <div id="history-modal" class="modal hidden">
-        <div class="modal-content glass-panel">
+        <div class="modal-content glass-panel history-modal-content">
             <div class="modal-header">
                 <h2>Workout History</h2>
                 <button id="close-history" class="close-btn"><span class="material-icons-outlined">close</span></button>
+            </div>
+            <div id="history-filter" class="history-filter">
+                <button class="history-filter-btn" id="history-filter-btn">
+                    <span id="history-filter-label">All Workouts</span>
+                    <span class="material-icons-outlined history-filter-arrow">expand_more</span>
+                </button>
+                <div id="history-filter-options" class="history-filter-options hidden"></div>
             </div>
             <div id="history-list" class="history-list"></div>
             <button id="clear-history" class="link-btn danger">Clear All History</button>

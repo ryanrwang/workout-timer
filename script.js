@@ -343,6 +343,7 @@ function renderHome() {
                         <button class="dropdown-item" onclick="event.stopPropagation(); editGroup('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">edit</span> Edit</button>
                         <button class="dropdown-item${hasProgress ? '' : ' disabled'}" onclick="event.stopPropagation(); ${hasProgress ? `resetRoutineProgress('${group.id}'); closeAllCardMenus()` : ''}" ${hasProgress ? '' : 'disabled'}><span class="material-icons-outlined">restart_alt</span> Reset</button>
                         <button class="dropdown-item" onclick="event.stopPropagation(); completeRoutineProgress('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">check_circle</span> Complete</button>
+                        <button class="dropdown-item" onclick="event.stopPropagation(); openHistoryForWorkout('${group.id}', '${group.name.replace(/'/g, "\\'")}'); closeAllCardMenus()"><span class="material-icons-outlined">history</span> History</button>
                         <div class="dropdown-divider"></div>
                         <button class="dropdown-item danger-text" onclick="event.stopPropagation(); archiveRoutine('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">archive</span> Archive</button>
                     </div>
@@ -858,6 +859,7 @@ settingsBtn.addEventListener('click', (e) => {
 document.addEventListener('click', () => {
     settingsMenu.classList.add('hidden');
     closeAllCardMenus();
+    if (typeof closeHistoryFilter === 'function') closeHistoryFilter();
 });
 
 // Mute toggle (in settings dropdown)
@@ -1601,6 +1603,7 @@ function finishWorkout() {
     // Record in history but keep progress visible on home page
     STATE.history.unshift({
         date: new Date().toISOString(),
+        groupId: STATE.activeWorkout.group.id,
         groupName: STATE.activeWorkout.group.name,
         duration: duration
     });
@@ -1723,32 +1726,127 @@ importFile.addEventListener('change', (e) => {
 
 // --- HISTORY MODAL LOGIC ---
 
+const historyFilterEl = document.getElementById('history-filter');
+const historyFilterBtn = document.getElementById('history-filter-btn');
+const historyFilterLabel = document.getElementById('history-filter-label');
+const historyFilterOptions = document.getElementById('history-filter-options');
+let historyFilterValue = 'all';
+
+function formatTimeAgo(date) {
+    const diffMin = Math.floor((Date.now() - date.getTime()) / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ${diffMin % 60}m ago`;
+    return `${Math.floor(diffMin / 1440)}d ${Math.floor((diffMin % 1440) / 60)}h ago`;
+}
+
+function toggleHistoryFilter() {
+    const isOpen = !historyFilterOptions.classList.contains('hidden');
+    if (isOpen) {
+        historyFilterOptions.classList.add('hidden');
+        historyFilterEl.classList.remove('open');
+    } else {
+        historyFilterOptions.classList.remove('hidden');
+        historyFilterEl.classList.add('open');
+    }
+}
+
+function closeHistoryFilter() {
+    historyFilterOptions.classList.add('hidden');
+    historyFilterEl.classList.remove('open');
+}
+
+historyFilterBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleHistoryFilter();
+});
+
+function selectHistoryFilter(value, label) {
+    historyFilterValue = value;
+    historyFilterLabel.textContent = label;
+    closeHistoryFilter();
+    renderHistory();
+}
+
+function buildHistoryFilterOptions() {
+    historyFilterOptions.innerHTML = '';
+    const items = [{ value: 'all', label: 'All Workouts' }];
+    // Collect known workout names from current + archived groups
+    const knownNames = new Set();
+    STATE.groups.forEach(g => knownNames.add(g.name));
+    STATE.archived.forEach(g => knownNames.add(g.name));
+    // Add options for workouts that appear in history
+    const historyNames = new Set();
+    STATE.history.forEach(e => historyNames.add(e.groupName));
+    const sortedNames = [...historyNames].sort((a, b) => a.localeCompare(b));
+    sortedNames.forEach(name => items.push({ value: name, label: name }));
+    // Add "Other" if any history entries don't match known workouts
+    const hasOther = STATE.history.some(e => !knownNames.has(e.groupName));
+    if (hasOther) items.push({ value: '__other__', label: 'Other' });
+
+    items.forEach(item => {
+        const btn = document.createElement('button');
+        btn.className = 'history-filter-option' + (item.value === historyFilterValue ? ' active' : '');
+        btn.textContent = item.label;
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectHistoryFilter(item.value, item.label);
+        });
+        historyFilterOptions.appendChild(btn);
+    });
+
+    // If current value no longer exists, reset to all
+    if (!items.some(i => i.value === historyFilterValue)) {
+        historyFilterValue = 'all';
+        historyFilterLabel.textContent = 'All Workouts';
+    }
+}
+
 function renderHistory() {
     historyList.innerHTML = '';
-    if (STATE.history.length === 0) {
+    buildHistoryFilterOptions();
+    const knownNames = new Set();
+    STATE.groups.forEach(g => knownNames.add(g.name));
+    STATE.archived.forEach(g => knownNames.add(g.name));
+    const filtered = STATE.history.filter(entry => {
+        if (historyFilterValue === 'all') return true;
+        if (historyFilterValue === '__other__') return !knownNames.has(entry.groupName);
+        return entry.groupName === historyFilterValue;
+    });
+    if (filtered.length === 0) {
         historyList.innerHTML = '<div class="empty-state">No workout history yet.</div>';
         clearHistoryBtn.classList.add('hidden');
         return;
     }
     clearHistoryBtn.classList.remove('hidden');
-    STATE.history.forEach(entry => {
+    filtered.forEach(entry => {
         const div = document.createElement('div');
         div.className = 'history-entry';
         const d = new Date(entry.date);
         const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
         const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        const ago = formatTimeAgo(d);
         div.innerHTML = `
             <div class="history-entry-header">
                 <span class="card-title">${entry.groupName}</span>
                 <span class="card-meta">${entry.duration}</span>
             </div>
-            <div class="card-meta">${dateStr} at ${timeStr}</div>
+            <div class="card-meta">${dateStr} at ${timeStr} &middot; <span class="history-entry-ago">${ago}</span></div>
         `;
         historyList.appendChild(div);
     });
 }
 
+window.openHistoryForWorkout = (groupId, groupName) => {
+    historyFilterValue = groupName;
+    historyFilterLabel.textContent = groupName;
+    renderHistory();
+    historyModal.classList.remove('hidden');
+};
+
 viewHistoryBtn.addEventListener('click', () => {
+    historyFilterValue = 'all';
+    historyFilterLabel.textContent = 'All Workouts';
     renderHistory();
     historyModal.classList.remove('hidden');
 });
