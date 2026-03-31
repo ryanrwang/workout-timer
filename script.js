@@ -320,14 +320,14 @@ function renderHome() {
             else if (diffMin < 60) ago = `${diffMin}m ago`;
             else if (diffMin < 1440) ago = `${Math.floor(diffMin / 60)}h ${diffMin % 60}m ago`;
             else ago = `${Math.floor(diffMin / 1440)}d ${Math.floor((diffMin % 1440) / 60)}h ago`;
-            // Color from yellow → orange → red over 1–7 days
+            // Color from green → yellow → orange → red over 1–14 days
             const diffDays = diffMin / 1440;
             let agoStyle = '';
             if (diffDays >= 1) {
-                const t = Math.min((diffDays - 1) / 6, 1); // 0 at 1d, 1 at 7d
-                const hue = 50 - t * 50; // 50 (yellow) → 0 (red)
-                const sat = 90 + t * 10; // 90% → 100%
-                const lit = 55 - t * 10; // 55% → 45%
+                const t = Math.min((diffDays - 1) / 13, 1); // 0 at 1d, 1 at 14d
+                const hue = 120 - t * 120; // 120 (green) → 0 (red)
+                const sat = 80 + t * 20; // 80% → 100%
+                const lit = 40 + (1 - Math.abs(t - 0.5) * 2) * 15; // 40% at ends, 55% at middle (yellow brighter)
                 agoStyle = ` style="color: hsl(${hue}, ${sat}%, ${lit}%); font-weight: 500"`;
             }
             completedDateHtml = `<span class="card-completed-icon"><span class="material-icons-outlined">check_circle</span></span><span class="card-completed">${completedDate.getFullYear()}/${String(completedDate.getMonth() + 1).padStart(2, '0')}/${String(completedDate.getDate()).padStart(2, '0')} @ ${completedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()} &middot; <span${agoStyle}>${ago}</span></span>`;

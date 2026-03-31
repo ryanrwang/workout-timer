@@ -44,6 +44,21 @@ Vanilla JS/CSS/HTML workout routine manager with timer, drag-and-drop, and optio
 - Run `git status`, `git stash list`, and `git branch -a` to check for uncommitted changes, lingering stashes, stale branches, or divergence from remote.
 - Flag any issues to the user before starting work.
 
+## "Push to prod"
+
+When the user says **"push to prod"**, execute this full pipeline automatically:
+
+1. **Commit** any uncommitted changes on the current branch (if any)
+2. **Push** the branch to GitHub (`git push -u origin <branch>`)
+3. **Create a PR** via `gh pr create`
+4. **Merge the PR** immediately via `gh pr merge --squash` — use squash merge so the merge commit title on `main` is the descriptive PR title (not "Merge pull request #N from user/branch")
+5. **Switch to main** and pull (`git checkout main && git pull`)
+6. **Delete the feature branch** locally (`git branch -d <branch>`)
+7. **Prune** stale remote refs (`git fetch --prune`)
+8. Run the standard post-push hygiene checks (status, stash list, branch -a)
+
+If already on `main` with uncommitted changes, commit and push directly — no PR needed.
+
 ### After push or PR
 - Run `git status`, `git stash list`, `git branch -a`, and `git fetch --prune` to verify clean state.
 - Flag any stale branches, uncommitted changes, or divergence.
