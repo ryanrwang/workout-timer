@@ -433,6 +433,33 @@ select:focus {
     gap: 6px;
     transition: all 0.3s ease;
     box-sizing: border-box;
+    position: relative;
+}
+
+.set-card .set-check {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 14px;
+    color: var(--primary);
+    opacity: 0.85;
+    pointer-events: none;
+}
+
+.set-card.rest-card .set-check {
+    color: var(--rest-color);
+}
+
+/* Active-card animated border — @property + @keyframes declared here, the
+   matching rules live after the static .active / .rest-active rules below so
+   the cascade resolves without !important. */
+@property --spin-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+@keyframes set-border-spin {
+    to { --spin-angle: 360deg; }
 }
 
 .set-card .set-label {
@@ -448,6 +475,20 @@ select:focus {
     font-size: 1.3rem;
     font-weight: 700;
     line-height: 1;
+    white-space: nowrap;
+}
+
+.set-card .set-number.set-duration {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Material icons inside .set-number must match plain-text bounding-box height
+   so the .set-label position stays stable across pending/done/material states. */
+.set-card .set-number .material-icons-outlined {
+    font-size: inherit;
+    line-height: 1;
+    vertical-align: top;
+    height: 1em;
 }
 
 /* Pending (upcoming) — readable but subdued */
@@ -520,6 +561,33 @@ select:focus {
 
 .set-card.rest-card.rest-done .set-number {
     color: var(--rest-color);
+}
+
+/* Animated border for SET in WORK state and rest-active state. Specificity
+   raised by chaining classes so this overrides the static .active /
+   .rest-active borders defined earlier in the file. */
+.set-card.active.in-progress,
+.set-card.rest-card.rest-active {
+    border-color: transparent;
+    background:
+        linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+        linear-gradient(var(--bg-color), var(--bg-color)) padding-box,
+        conic-gradient(from var(--spin-angle),
+            var(--primary) 0deg,
+            rgba(0, 255, 157, 0.18) 70deg,
+            rgba(0, 255, 157, 0.18) 290deg,
+            var(--primary) 360deg) border-box;
+    animation: set-border-spin 1.6s linear infinite;
+}
+.set-card.rest-card.rest-active {
+    background:
+        linear-gradient(var(--card-bg), var(--card-bg)) padding-box,
+        linear-gradient(var(--bg-color), var(--bg-color)) padding-box,
+        conic-gradient(from var(--spin-angle),
+            var(--rest-color) 0deg,
+            rgba(255, 165, 0, 0.18) 70deg,
+            rgba(255, 165, 0, 0.18) 290deg,
+            var(--rest-color) 360deg) border-box;
 }
 
 /* Back button */
@@ -1336,6 +1404,15 @@ select:focus {
     color: var(--text-muted);
     margin-left: 4px;
     vertical-align: middle;
+}
+
+.card-oldest {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    opacity: 0.75;
 }
 
 /* Wider archive modal */

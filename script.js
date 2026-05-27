@@ -185,9 +185,9 @@ function saveData() {
 
 function saveWorkoutProgress() {
     if (!STATE.activeWorkout) return;
-    const { group, exIndex, setIndex, completedSets, completedRests } = STATE.activeWorkout;
+    const { group, exIndex, setIndex, completedSets, completedRests, completedSetDurations, completedRestDurations } = STATE.activeWorkout;
     localStorage.setItem('workoutProgress_' + group.id, JSON.stringify({
-        exIndex, setIndex, completedSets, completedRests,
+        exIndex, setIndex, completedSets, completedRests, completedSetDurations, completedRestDurations,
         timestamp: Date.now()
     }));
     debouncedSyncSave();
@@ -284,6 +284,26 @@ function renderHome() {
         return;
     }
 
+    // Find the oldest fully-completed routine (only useful if 2+ exist)
+    let oldestGroupId = null;
+    let oldestTimestamp = Infinity;
+    let completedCount = 0;
+    STATE.groups.forEach(group => {
+        const saved = loadWorkoutProgress(group.id);
+        const allDone = saved && saved.completedSets && group.exercises.length > 0 && saved.completedSets.every((sets, ei) => {
+            const totalSets = parseInt(group.exercises[ei]?.sets) || 3;
+            return sets && sets.length >= totalSets;
+        });
+        if (allDone && saved.timestamp) {
+            completedCount++;
+            if (saved.timestamp < oldestTimestamp) {
+                oldestTimestamp = saved.timestamp;
+                oldestGroupId = group.id;
+            }
+        }
+    });
+    if (completedCount < 2) oldestGroupId = null;
+
     STATE.groups.forEach((group, idx) => {
         const card = document.createElement('div');
         card.className = 'group-card';
@@ -330,7 +350,8 @@ function renderHome() {
                 const lit = 40 + (1 - Math.abs(t - 0.5) * 2) * 15; // 40% at ends, 55% at middle (yellow brighter)
                 agoStyle = ` style="color: hsl(${hue}, ${sat}%, ${lit}%); font-weight: 500"`;
             }
-            completedDateHtml = `<span class="card-completed-icon"><span class="material-icons-outlined">check_circle</span></span><span class="card-completed">${completedDate.getFullYear()}/${String(completedDate.getMonth() + 1).padStart(2, '0')}/${String(completedDate.getDate()).padStart(2, '0')} @ ${completedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()} &middot; <span${agoStyle}>${ago}</span></span>`;
+            const oldestSuffix = group.id === oldestGroupId ? ' <span class="card-oldest">(oldest)</span>' : '';
+            completedDateHtml = `<span class="card-completed-icon"><span class="material-icons-outlined">check_circle</span></span><span class="card-completed">${completedDate.getFullYear()}/${String(completedDate.getMonth() + 1).padStart(2, '0')}/${String(completedDate.getDate()).padStart(2, '0')} @ ${completedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase()} &middot; <span${agoStyle}>${ago}</span>${oldestSuffix}</span>`;
         }
 
         card.innerHTML = `
@@ -902,13 +923,17 @@ window.startWorkout = (groupId, skipHash) => {
         setStartTime: null,
         restEndTime: null,
         completedSets: [],
-        completedRests: []
+        completedRests: [],
+        completedSetDurations: [],
+        completedRestDurations: []
     };
 
     // Initialize completed sets/rests tracking
     group.exercises.forEach(() => {
         STATE.activeWorkout.completedSets.push([]);
         STATE.activeWorkout.completedRests.push([]);
+        STATE.activeWorkout.completedSetDurations.push({});
+        STATE.activeWorkout.completedRestDurations.push({});
     });
 
     // Load saved progress if any
@@ -918,6 +943,19 @@ window.startWorkout = (groupId, skipHash) => {
         STATE.activeWorkout.setIndex = saved.setIndex || 1;
         if (saved.completedSets) STATE.activeWorkout.completedSets = saved.completedSets;
         if (saved.completedRests) STATE.activeWorkout.completedRests = saved.completedRests;
+        if (saved.completedSetDurations) {
+            STATE.activeWorkout.completedSetDurations = saved.completedSetDurations;
+            // Ensure parallel length with exercises
+            while (STATE.activeWorkout.completedSetDurations.length < group.exercises.length) {
+                STATE.activeWorkout.completedSetDurations.push({});
+            }
+        }
+        if (saved.completedRestDurations) {
+            STATE.activeWorkout.completedRestDurations = saved.completedRestDurations;
+            while (STATE.activeWorkout.completedRestDurations.length < group.exercises.length) {
+                STATE.activeWorkout.completedRestDurations.push({});
+            }
+        }
     }
 
     workoutStartTime = Date.now();
@@ -952,6 +990,13 @@ function startWorkoutTimer() {
 
 function formatTimeSeconds(sec) {
     const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function formatSetDuration(sec) {
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
     const s = (sec % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
 }
@@ -1017,6 +1062,8 @@ function updateWorkoutUI() {
     const totalSets = parseInt(exercise.sets) || 3;
     const completed = completedSets[exIndex] || [];
     const completedR = STATE.activeWorkout.completedRests[exIndex] || [];
+    const completedD = (STATE.activeWorkout.completedSetDurations && STATE.activeWorkout.completedSetDurations[exIndex]) || {};
+    const completedRD = (STATE.activeWorkout.completedRestDurations && STATE.activeWorkout.completedRestDurations[exIndex]) || {};
     setsContainer.innerHTML = '';
 
     for (let i = 1; i <= totalSets; i++) {
@@ -1031,9 +1078,13 @@ function updateWorkoutUI() {
 
         if (completed.includes(i)) {
             card.classList.add('completed');
-            card.innerHTML = `<span class="set-label">Set</span><span class="set-number">✓</span>`;
+            const dur = completedD[i];
+            const display = (dur != null) ? formatSetDuration(dur) : '<span class="material-icons-outlined">check</span>';
+            const numClass = (dur != null) ? 'set-number set-duration' : 'set-number';
+            card.innerHTML = `<span class="set-label">Set</span><span class="${numClass}">${display}</span><span class="set-check material-icons-outlined">check_circle</span>`;
         } else if (i === setIndex && state === 'WORK') {
             card.classList.add('active');
+            card.classList.add('in-progress');
             card.innerHTML = `<span class="set-label">Set</span><span class="set-number">●</span>`;
         } else if (i === setIndex && state !== 'REST') {
             card.classList.add('active');
@@ -1057,7 +1108,10 @@ function updateWorkoutUI() {
 
             if (completedR.includes(i)) {
                 restCard.classList.add('rest-done');
-                restCard.innerHTML = `<span class="set-label">Rest</span><span class="set-number">✓</span>`;
+                const rDur = completedRD[i];
+                const rDisplay = (rDur != null) ? formatSetDuration(rDur) : '<span class="material-icons-outlined">check</span>';
+                const rNumClass = (rDur != null) ? 'set-number set-duration' : 'set-number';
+                restCard.innerHTML = `<span class="set-label">Rest</span><span class="${rNumClass}">${rDisplay}</span><span class="set-check material-icons-outlined">check_circle</span>`;
             } else if (state === 'REST' && completed.includes(i) && !completed.includes(i + 1)) {
                 restCard.classList.add('rest-active');
                 restCard.innerHTML = `<span class="set-label">Rest</span><span class="set-number">●</span>`;
@@ -1082,7 +1136,10 @@ function updateWorkoutUI() {
 
         if (completedR.includes(-1)) {
             globalRestCard.classList.add('rest-done');
-            globalRestCard.innerHTML = `<span class="set-label">Rest</span><span class="set-number">✓</span>`;
+            const gDur = completedRD[-1];
+            const gDisplay = (gDur != null) ? formatSetDuration(gDur) : '<span class="material-icons-outlined">check</span>';
+            const gNumClass = (gDur != null) ? 'set-number set-duration' : 'set-number';
+            globalRestCard.innerHTML = `<span class="set-label">Rest</span><span class="${gNumClass}">${gDisplay}</span><span class="set-check material-icons-outlined">check_circle</span>`;
         } else if (state === 'REST' && allSetsComplete) {
             globalRestCard.classList.add('rest-active');
             globalRestCard.innerHTML = `<span class="set-label">Rest</span><span class="set-number">●</span>`;
@@ -1241,6 +1298,24 @@ function jumpToStep(targetExIndex, type, targetIndex) {
     STATE.activeWorkout.completedSets[targetExIndex] = newCompletedSets;
     STATE.activeWorkout.completedRests[targetExIndex] = newCompletedRests;
 
+    // Preserve durations for sets that remain marked complete; drop any that were uncompleted
+    const oldDurs = (STATE.activeWorkout.completedSetDurations && STATE.activeWorkout.completedSetDurations[targetExIndex]) || {};
+    const newDurs = {};
+    newCompletedSets.forEach(s => {
+        if (oldDurs[s] != null) newDurs[s] = oldDurs[s];
+    });
+    if (!STATE.activeWorkout.completedSetDurations) STATE.activeWorkout.completedSetDurations = [];
+    STATE.activeWorkout.completedSetDurations[targetExIndex] = newDurs;
+
+    // Same for rest durations
+    const oldRDurs = (STATE.activeWorkout.completedRestDurations && STATE.activeWorkout.completedRestDurations[targetExIndex]) || {};
+    const newRDurs = {};
+    newCompletedRests.forEach(r => {
+        if (oldRDurs[r] != null) newRDurs[r] = oldRDurs[r];
+    });
+    if (!STATE.activeWorkout.completedRestDurations) STATE.activeWorkout.completedRestDurations = [];
+    STATE.activeWorkout.completedRestDurations[targetExIndex] = newRDurs;
+
     saveWorkoutProgress();
     updateWorkoutUI();
 }
@@ -1294,9 +1369,14 @@ actionBtn.addEventListener('click', () => {
         // Skip rest — same as finishRest
         finishRest();
     } else if (state === 'WORK') {
-        // END SET — mark complete
+        // END SET — mark complete + record duration
         if (!completedSets[exIndex].includes(setIndex)) {
             completedSets[exIndex].push(setIndex);
+        }
+        if (STATE.activeWorkout.setStartTime) {
+            const durSec = Math.max(0, Math.floor((Date.now() - STATE.activeWorkout.setStartTime) / 1000));
+            if (!STATE.activeWorkout.completedSetDurations[exIndex]) STATE.activeWorkout.completedSetDurations[exIndex] = {};
+            STATE.activeWorkout.completedSetDurations[exIndex][setIndex] = durSec;
         }
         const nextIncomplete = findNextIncompleteSet(exIndex);
         STATE.activeWorkout.setIndex = nextIncomplete;
@@ -1358,10 +1438,20 @@ function startRest(afterSetIndex) {
 function finishRest(natural = false) {
     if (!STATE.activeWorkout) return;
     const { exIndex, restAfterSet, group } = STATE.activeWorkout;
+    const exercise = group.exercises[exIndex];
 
-    // Mark this rest as completed
+    // Mark this rest as completed + record actual duration (configured - remaining)
     if (restAfterSet != null && !STATE.activeWorkout.completedRests[exIndex].includes(restAfterSet)) {
         STATE.activeWorkout.completedRests[exIndex].push(restAfterSet);
+    }
+    if (restAfterSet != null && STATE.activeWorkout.restEndTime) {
+        const configured = restAfterSet === -1
+            ? (parseInt(exercise.betweenRest) || 120)
+            : (parseInt(exercise.rest) || 0);
+        const remainingSec = Math.max(0, (STATE.activeWorkout.restEndTime - Date.now()) / 1000);
+        const actualDur = Math.max(0, Math.round(configured - remainingSec));
+        if (!STATE.activeWorkout.completedRestDurations[exIndex]) STATE.activeWorkout.completedRestDurations[exIndex] = {};
+        STATE.activeWorkout.completedRestDurations[exIndex][restAfterSet] = actualDur;
     }
 
     // Play chime only on natural timer expiry
@@ -1402,6 +1492,9 @@ document.getElementById('back-btn').addEventListener('click', () => {
         if (setToUncomplete != null) {
             const sIdx = completedSets[exIndex].indexOf(setToUncomplete);
             if (sIdx >= 0) completedSets[exIndex].splice(sIdx, 1);
+            if (STATE.activeWorkout.completedSetDurations[exIndex]) {
+                delete STATE.activeWorkout.completedSetDurations[exIndex][setToUncomplete];
+            }
 
             // Also revert set index to this set
             STATE.activeWorkout.setIndex = setToUncomplete;
@@ -1437,6 +1530,9 @@ document.getElementById('back-btn').addEventListener('click', () => {
                 // Remove it from completed
                 const rIdx = completedRests[exIndex].indexOf(prevSet);
                 if (rIdx >= 0) completedRests[exIndex].splice(rIdx, 1);
+                if (STATE.activeWorkout.completedRestDurations[exIndex]) {
+                    delete STATE.activeWorkout.completedRestDurations[exIndex][prevSet];
+                }
 
                 // Enter REST state
                 STATE.activeWorkout.state = 'REST';
@@ -1466,6 +1562,9 @@ document.getElementById('back-btn').addEventListener('click', () => {
         if (lastNormalRest > 0 && lastNormalRest >= lastCompletedSet) {
             const rIdx = completedRests[exIndex].indexOf(lastNormalRest);
             if (rIdx >= 0) completedRests[exIndex].splice(rIdx, 1);
+            if (STATE.activeWorkout.completedRestDurations[exIndex]) {
+                delete STATE.activeWorkout.completedRestDurations[exIndex][lastNormalRest];
+            }
 
             // Go to REST state
             STATE.activeWorkout.state = 'REST';
@@ -1477,6 +1576,9 @@ document.getElementById('back-btn').addEventListener('click', () => {
             // Scenario 2: Just finished a set (Set X -> IDLE, no rest yet or rest skipped)
             // Undo that set
             const lastSet = completedSets[exIndex].pop();
+            if (STATE.activeWorkout.completedSetDurations[exIndex]) {
+                delete STATE.activeWorkout.completedSetDurations[exIndex][lastSet];
+            }
             STATE.activeWorkout.setIndex = lastSet;
         } else if (exIndex > 0) {
             // Scenario 3: At start of new exercise (Ex 2 IDLE)
@@ -1489,6 +1591,9 @@ document.getElementById('back-btn').addEventListener('click', () => {
                 // Back into Global Rest
                 const rIdx = completedRests[prevIdx].indexOf(-1);
                 if (rIdx >= 0) completedRests[prevIdx].splice(rIdx, 1);
+                if (STATE.activeWorkout.completedRestDurations[prevIdx]) {
+                    delete STATE.activeWorkout.completedRestDurations[prevIdx][-1];
+                }
 
                 STATE.activeWorkout.exIndex = prevIdx; // Go back to prev ex context (conceptually)
                 // actually wait, global rest happens "between" exercises but visually we might want to stay on current?
@@ -1554,6 +1659,8 @@ document.getElementById('reset-exercise-btn').addEventListener('click', () => {
     const { exIndex } = STATE.activeWorkout;
     STATE.activeWorkout.completedSets[exIndex] = [];
     STATE.activeWorkout.completedRests[exIndex] = [];
+    STATE.activeWorkout.completedSetDurations[exIndex] = {};
+    STATE.activeWorkout.completedRestDurations[exIndex] = {};
     STATE.activeWorkout.setIndex = 1;
     STATE.activeWorkout.state = 'IDLE';
     STATE.activeWorkout.setStartTime = null;
