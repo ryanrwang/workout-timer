@@ -8,6 +8,7 @@ data/users/*.json
 # IDE/Editor
 .vscode/
 .idea/
+.claude/
 *.swp
 
 # OS files

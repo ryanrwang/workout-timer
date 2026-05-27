@@ -9,10 +9,22 @@ Vanilla JS/CSS/HTML workout routine manager with timer, drag-and-drop, and optio
 - Auth: HttpOnly cookies (wt_token), fallback to Bearer token
 - Icons/Fonts: Google Fonts (Inter, Material Icons) — loaded via CDN
 
+## Key Files
+
+| File | Purpose |
+|---|---|
+| `index.html` | Page shell, modal markup, script/style includes |
+| `script.js` | All client logic — routing, STATE, timer, drag/drop, audio, sync |
+| `style.css` | All styles, CSS variable theme at `:root` |
+| `api.php` | Sync endpoint — `save` / `load` / `check` actions, cookie+Bearer auth |
+
 ## Key Commands
 
 - **Deploy**: Push to `main` — GitHub Actions FTPs to Bluehost (`.github/workflows/deploy.yml`)
-- **Run locally**: Serve with any PHP-capable server (e.g., `php -S localhost:8000`). No build step.
+- **Run locally**: PHP-capable server required (sync calls `api.php`).
+  - **Windows:** PHP 8.4 via winget at `C:\Users\DarkD\AppData\Local\Microsoft\WinGet\Packages\PHP.PHP.8.4_Microsoft.Winget.Source_8wekyb3d8bbwe\php.exe`
+  - **Mac:** PHP via Homebrew at `/opt/homebrew/bin/php`
+  - `.claude/launch.json` has two configs: `workout-mac` and `workout-win`. Use the one matching the current OS with `preview_start`.
 - **No tests exist.**
 
 ## Architecture
@@ -33,36 +45,6 @@ Vanilla JS/CSS/HTML workout routine manager with timer, drag-and-drop, and optio
 - **`api.php` auth flow**: cookie → Bearer header → query param (for sendBeacon). All three paths must work.
 - **CSS variables define the theme** — all colors use custom properties at `:root`. Never use hardcoded color values.
 - **Backward compat**: `globalRest` on groups migrates to per-exercise `betweenRest`. Don't remove migration code.
-
-## Environment
-
-- `gh` CLI is installed at `/c/Program Files/GitHub CLI/gh.exe` — use this full path since it's not on the bash PATH.
-
-## Repo Hygiene
-
-### On session start
-- Run `git status`, `git stash list`, and `git branch -a` to check for uncommitted changes, lingering stashes, stale branches, or divergence from remote.
-- Flag any issues to the user before starting work.
-
-## "Push to prod"
-
-When the user says **"push to prod"**, execute this full pipeline automatically:
-
-1. **Commit** any uncommitted changes on the current branch (if any)
-2. **Push** the branch to GitHub (`git push -u origin <branch>`)
-3. **Create a PR** via `gh pr create`
-4. **Merge the PR** immediately via `gh pr merge --squash` — use squash merge so the merge commit title on `main` is the descriptive PR title (not "Merge pull request #N from user/branch")
-5. **Switch to main** and pull (`git checkout main && git pull`)
-6. **Delete the feature branch** locally (`git branch -d <branch>`)
-7. **Prune** stale remote refs (`git fetch --prune`)
-8. Run the standard post-push hygiene checks (status, stash list, branch -a)
-
-If already on `main` with uncommitted changes, commit and push directly — no PR needed.
-
-### After push or PR
-- Run `git status`, `git stash list`, `git branch -a`, and `git fetch --prune` to verify clean state.
-- Flag any stale branches, uncommitted changes, or divergence.
-- Ask the user what they'd like to work on next.
 
 ## Deployment
 
