@@ -12,6 +12,8 @@ const SYNC = {
     name: null,
     enabled: false,
     _saveTimeout: null,
+    _dirty: false,     // unsaved local changes the server hasn't acknowledged
+    _inFlight: false,  // a syncSave fetch is currently running
 };
 
 // --- DOM ELEMENTS ---
@@ -95,17 +97,28 @@ function init() {
     checkSyncAuth().then(() => restoreFromHash());
 }
 
-// Flush any pending sync before the tab closes
-window.addEventListener('beforeunload', () => {
-    if (SYNC.enabled && SYNC._saveTimeout) {
-        clearTimeout(SYNC._saveTimeout);
-        const payload = JSON.stringify(buildSyncPayload());
-        // sendBeacon can't set headers, so pass token as query param
-        const url = SYNC.token
-            ? 'api.php?action=save&token=' + encodeURIComponent(SYNC.token)
-            : 'api.php?action=save';
-        navigator.sendBeacon(url, payload);
-    }
+// Flush any pending sync when the tab is closing or being hidden.
+// beforeunload alone is unreliable on iOS Safari, where pagehide and
+// visibilitychange->hidden are the events that actually fire on close.
+function flushPendingSync() {
+    if (!SYNC.enabled) return;
+    if (!SYNC._dirty && !SYNC._saveTimeout && !SYNC._inFlight) return;
+    clearTimeout(SYNC._saveTimeout);
+    SYNC._saveTimeout = null;
+    SYNC._dirty = false;
+    SYNC._inFlight = false;
+    const payload = JSON.stringify(buildSyncPayload());
+    // sendBeacon can't set headers, so pass token as query param
+    const url = SYNC.token
+        ? 'api.php?action=save&token=' + encodeURIComponent(SYNC.token)
+        : 'api.php?action=save';
+    navigator.sendBeacon(url, payload);
+}
+
+window.addEventListener('beforeunload', flushPendingSync);
+window.addEventListener('pagehide', flushPendingSync);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingSync();
 });
 
 // --- HASH-BASED STATE MANAGEMENT ---
@@ -164,18 +177,40 @@ window.addEventListener('hashchange', () => {
     }
 });
 
+// Wrapper: localStorage.setItem that won't throw on quota-exceeded or
+// private-mode failures (data still lives in STATE / on the sync server)
+function safeSetItem(key, value) {
+    try {
+        localStorage.setItem(key, value);
+        return true;
+    } catch (e) {
+        console.warn('localStorage write failed:', key, e);
+        return false;
+    }
+}
+
 function loadData() {
     const data = localStorage.getItem('workoutTimerData');
     if (data) {
-        const parsed = JSON.parse(data);
-        STATE.groups = parsed.groups || [];
-        STATE.archived = parsed.archived || [];
-        STATE.history = parsed.history || [];
+        let parsed;
+        try {
+            parsed = JSON.parse(data);
+        } catch (e) {
+            // Corrupted blob — start empty rather than bricking init(); the
+            // first saveData() overwrites it, so don't delete (keep for forensics)
+            console.warn('Corrupted workoutTimerData, starting with empty state:', e);
+            return;
+        }
+        if (parsed && typeof parsed === 'object') {
+            STATE.groups = parsed.groups || [];
+            STATE.archived = parsed.archived || [];
+            STATE.history = parsed.history || [];
+        }
     }
 }
 
 function saveData() {
-    localStorage.setItem('workoutTimerData', JSON.stringify({
+    safeSetItem('workoutTimerData', JSON.stringify({
         groups: STATE.groups,
         archived: STATE.archived,
         history: STATE.history
@@ -186,7 +221,7 @@ function saveData() {
 function saveWorkoutProgress() {
     if (!STATE.activeWorkout) return;
     const { group, exIndex, setIndex, completedSets, completedRests, completedSetDurations, completedRestDurations } = STATE.activeWorkout;
-    localStorage.setItem('workoutProgress_' + group.id, JSON.stringify({
+    safeSetItem('workoutProgress_' + group.id, JSON.stringify({
         exIndex, setIndex, completedSets, completedRests, completedSetDurations, completedRestDurations,
         timestamp: Date.now()
     }));
@@ -195,8 +230,14 @@ function saveWorkoutProgress() {
 
 function loadWorkoutProgress(groupId) {
     const data = localStorage.getItem('workoutProgress_' + groupId);
-    if (data) return JSON.parse(data);
-    return null;
+    if (!data) return null;
+    try {
+        return JSON.parse(data);
+    } catch (e) {
+        // Corrupted progress — callers all null-guard, so home still renders
+        console.warn('Corrupted workout progress for', groupId, e);
+        return null;
+    }
 }
 
 function clearWorkoutProgress(groupId) {
@@ -675,7 +716,7 @@ window.completeRoutineProgress = (groupId) => {
         }
         return rests;
     });
-    localStorage.setItem('workoutProgress_' + groupId, JSON.stringify({
+    safeSetItem('workoutProgress_' + groupId, JSON.stringify({
         exIndex: group.exercises.length - 1,
         setIndex: parseInt(group.exercises[group.exercises.length - 1].sets) || 3,
         completedSets,
@@ -923,7 +964,7 @@ muteToggle.addEventListener('click', (e) => {
     e.stopPropagation();
     audioMuted = !audioMuted;
     muteToggle.innerHTML = audioMuted ? '<span class="material-icons-outlined">volume_off</span> Sound Off' : '<span class="material-icons-outlined">volume_up</span> Sound On';
-    localStorage.setItem('workoutAudioMuted', audioMuted);
+    safeSetItem('workoutAudioMuted', audioMuted);
 });
 
 // Card menu helpers
@@ -1784,9 +1825,8 @@ exportBtn.addEventListener('click', () => {
     const filename = `workout_backup_${ts}.json`;
     const progress = {};
     STATE.groups.forEach(g => {
-        const key = 'workoutProgress_' + g.id;
-        const data = localStorage.getItem(key);
-        if (data) progress[g.id] = JSON.parse(data);
+        const p = loadWorkoutProgress(g.id);
+        if (p) progress[g.id] = p;
     });
 
     // Write globalRest on each group for backward compatibility with older versions
@@ -1844,7 +1884,7 @@ importFile.addEventListener('change', (e) => {
                 // Restore progress if present
                 if (parsed.progress) {
                     Object.keys(parsed.progress).forEach(groupId => {
-                        localStorage.setItem('workoutProgress_' + groupId, JSON.stringify(parsed.progress[groupId]));
+                        safeSetItem('workoutProgress_' + groupId, JSON.stringify(parsed.progress[groupId]));
                     });
                 }
 
@@ -2075,7 +2115,8 @@ window.restoreFromArchive = (idx) => {
 window.deleteFromArchive = (idx) => {
     if (idx < 0 || idx >= STATE.archived.length) return;
     if (!confirm(`Permanently delete "${STATE.archived[idx].name}"? This cannot be undone.`)) return;
-    STATE.archived.splice(idx, 1);
+    const removed = STATE.archived.splice(idx, 1)[0];
+    if (removed) clearWorkoutProgress(removed.id); // free the orphaned progress key
     saveData();
     renderArchive();
 };
@@ -2099,7 +2140,10 @@ document.getElementById('bulk-delete-btn').addEventListener('click', () => {
     const checked = getCheckedArchiveIndexes();
     if (checked.length === 0) return;
     if (!confirm(`Permanently delete ${checked.length} routine(s)? This cannot be undone.`)) return;
-    checked.sort((a, b) => b - a).forEach(idx => STATE.archived.splice(idx, 1));
+    checked.sort((a, b) => b - a).forEach(idx => {
+        const removed = STATE.archived.splice(idx, 1)[0];
+        if (removed) clearWorkoutProgress(removed.id); // free the orphaned progress key
+    });
     saveData();
     renderArchive();
 });
@@ -2136,8 +2180,8 @@ function showSyncError(msg) {
 // Helper: persist sync token to localStorage + JS cookie (cookie fallback)
 function saveSyncToken(token, name) {
     if (token) {
-        localStorage.setItem('syncToken', token);
-        if (name) localStorage.setItem('syncName', name);
+        safeSetItem('syncToken', token);
+        if (name) safeSetItem('syncName', name);
         // Also set a JS-accessible cookie as fallback if localStorage is lost (e.g. origin change)
         document.cookie = 'wt_sync_token=' + token + ';path=/;max-age=' + (365 * 86400) + ';samesite=Lax';
         if (name) document.cookie = 'wt_sync_name=' + encodeURIComponent(name) + ';path=/;max-age=' + (365 * 86400) + ';samesite=Lax';
@@ -2164,8 +2208,8 @@ function getStoredSyncToken() {
     name = cookies['wt_sync_name'] ? decodeURIComponent(cookies['wt_sync_name']) : null;
     if (token) {
         // Restore to localStorage for next time
-        localStorage.setItem('syncToken', token);
-        if (name) localStorage.setItem('syncName', name);
+        safeSetItem('syncToken', token);
+        if (name) safeSetItem('syncName', name);
     }
     return { token, name };
 }
@@ -2201,8 +2245,8 @@ function setSyncingState(syncing) {
 function buildSyncPayload() {
     const progress = {};
     STATE.groups.forEach(g => {
-        const data = localStorage.getItem('workoutProgress_' + g.id);
-        if (data) progress[g.id] = JSON.parse(data);
+        const p = loadWorkoutProgress(g.id);
+        if (p) progress[g.id] = p;
     });
     return {
         groups: STATE.groups,
@@ -2227,7 +2271,15 @@ function applySyncData(data) {
         return;
     }
 
-    STATE.groups = data.groups || [];
+    // Migrate older server data: seed betweenRest from legacy globalRest
+    // (mirrors the import migration so synced + imported data behave alike)
+    STATE.groups = (data.groups || []).map(g => ({
+        ...g,
+        exercises: (g.exercises || []).map(ex => ({
+            ...ex,
+            betweenRest: ex.betweenRest ?? (parseInt(g.globalRest) || 120)
+        }))
+    }));
     STATE.archived = data.archived || [];
     STATE.history = data.history || [];
 
@@ -2237,12 +2289,12 @@ function applySyncData(data) {
     });
     if (data.progress) {
         Object.keys(data.progress).forEach(groupId => {
-            localStorage.setItem('workoutProgress_' + groupId, JSON.stringify(data.progress[groupId]));
+            safeSetItem('workoutProgress_' + groupId, JSON.stringify(data.progress[groupId]));
         });
     }
 
     // Update localStorage main data
-    localStorage.setItem('workoutTimerData', JSON.stringify({
+    safeSetItem('workoutTimerData', JSON.stringify({
         groups: STATE.groups,
         archived: STATE.archived,
         history: STATE.history
@@ -2253,6 +2305,10 @@ function applySyncData(data) {
 async function syncSave() {
     if (!SYNC.enabled) return;
     setSyncingState(true);
+    // Clear dirty BEFORE building the payload: any edit landing during the
+    // fetch re-sets _dirty, so a success response can't mask a newer change.
+    SYNC._dirty = false;
+    SYNC._inFlight = true;
     try {
         const resp = await fetch('api.php?action=save', {
             method: 'POST',
@@ -2261,21 +2317,28 @@ async function syncSave() {
             credentials: 'same-origin'
         });
         if (!resp.ok) {
+            SYNC._dirty = true; // server rejected — keep trying on next change/flush
             const err = await resp.json().catch(() => ({}));
             console.warn('Sync save failed:', err.error || resp.status);
         }
     } catch (e) {
         // Network error — silent, localStorage is the fallback
+        SYNC._dirty = true;
         console.warn('Sync save network error:', e.message);
     } finally {
+        SYNC._inFlight = false;
         setSyncingState(false);
     }
 }
 
 function debouncedSyncSave() {
     if (!SYNC.enabled) return;
+    SYNC._dirty = true;
     clearTimeout(SYNC._saveTimeout);
-    SYNC._saveTimeout = setTimeout(syncSave, 500);
+    SYNC._saveTimeout = setTimeout(() => {
+        SYNC._saveTimeout = null; // null after firing so flush checks reflect reality
+        syncSave();
+    }, 500);
 }
 
 async function syncLoad() {
