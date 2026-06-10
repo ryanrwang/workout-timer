@@ -2254,7 +2254,15 @@ function applySyncData(data) {
         return;
     }
 
-    STATE.groups = data.groups || [];
+    // Migrate older server data: seed betweenRest from legacy globalRest
+    // (mirrors the import migration so synced + imported data behave alike)
+    STATE.groups = (data.groups || []).map(g => ({
+        ...g,
+        exercises: (g.exercises || []).map(ex => ({
+            ...ex,
+            betweenRest: ex.betweenRest ?? (parseInt(g.globalRest) || 120)
+        }))
+    }));
     STATE.archived = data.archived || [];
     STATE.history = data.history || [];
 
