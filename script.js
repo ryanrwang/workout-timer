@@ -372,19 +372,38 @@ function renderHome() {
                 <div class="drag-handle"><span class="material-icons-outlined">drag_indicator</span></div>
                 <div class="card-title${completedDateHtml ? ' is-completed' : ''}"><span class="card-name">${escapeHtml(group.name)} <span class="card-count">&bull; ${group.exercises.length}</span></span>${completedDateHtml}</div>
                 <div class="card-menu-wrapper">
-                    <button class="btn-icon card-menu-btn" onclick="event.stopPropagation(); toggleCardMenu(this)"><span class="material-icons-outlined">more_vert</span></button>
+                    <button class="btn-icon card-menu-btn" data-action="menu"><span class="material-icons-outlined">more_vert</span></button>
                     <div class="card-dropdown-menu hidden">
-                        <button class="dropdown-item" onclick="event.stopPropagation(); editGroup('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">edit</span> Edit</button>
-                        <button class="dropdown-item${hasProgress ? '' : ' disabled'}" onclick="event.stopPropagation(); ${hasProgress ? `resetRoutineProgress('${group.id}'); closeAllCardMenus()` : ''}" ${hasProgress ? '' : 'disabled'}><span class="material-icons-outlined">restart_alt</span> Reset</button>
-                        <button class="dropdown-item" onclick="event.stopPropagation(); completeRoutineProgress('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">check_circle</span> Complete</button>
-                        <button class="dropdown-item" onclick="event.stopPropagation(); openHistoryForWorkout('${group.id}', '${group.name.replace(/'/g, "\\'")}'); closeAllCardMenus()"><span class="material-icons-outlined">history</span> History</button>
+                        <button class="dropdown-item" data-action="edit"><span class="material-icons-outlined">edit</span> Edit</button>
+                        <button class="dropdown-item${hasProgress ? '' : ' disabled'}" data-action="reset" ${hasProgress ? '' : 'disabled'}><span class="material-icons-outlined">restart_alt</span> Reset</button>
+                        <button class="dropdown-item" data-action="complete"><span class="material-icons-outlined">check_circle</span> Complete</button>
+                        <button class="dropdown-item" data-action="history"><span class="material-icons-outlined">history</span> History</button>
                         <div class="dropdown-divider"></div>
-                        <button class="dropdown-item danger-text" onclick="event.stopPropagation(); archiveRoutine('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">archive</span> Archive</button>
+                        <button class="dropdown-item danger-text" data-action="archive"><span class="material-icons-outlined">archive</span> Archive</button>
                     </div>
                 </div>
             </div>
             ${pillsHtml ? `<div class="ex-tags">${pillsHtml}</div>` : ''}
         `;
+
+        // Menu actions via delegation — closure over group, no ids/names in
+        // attribute JS strings (ids and names are user-controllable via import/sync)
+        card.querySelector('.card-menu-wrapper').addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return; // non-button clicks keep bubbling to the card (starts workout)
+            e.stopPropagation();
+            const action = btn.dataset.action;
+            if (action === 'menu') {
+                toggleCardMenu(btn);
+                return;
+            }
+            if (action === 'edit') editGroup(group.id);
+            else if (action === 'reset') resetRoutineProgress(group.id);
+            else if (action === 'complete') completeRoutineProgress(group.id);
+            else if (action === 'history') openHistoryForWorkout(group.id, group.name);
+            else if (action === 'archive') archiveRoutine(group.id);
+            closeAllCardMenus();
+        });
         groupsList.appendChild(card);
     });
 }
