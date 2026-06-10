@@ -245,7 +245,7 @@ switch ($action) {
 
     // Logout (clear cookie)
     case 'logout':
-        setcookie('wt_token', '', [
+        setcookie($COOKIE_NAME, '', [
             'expires' => time() - 86400,
             'path' => '/',
             'httponly' => true,
