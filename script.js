@@ -387,9 +387,10 @@ function renderHome() {
         card.className = 'group-card';
         card.draggable = true;
         card.dataset.index = idx;
-        // Click on main area (not buttons/handle) starts workout
+        // Click on main area (not buttons/handle) starts workout.
+        // closest() so a tap on the handle's inner icon span also counts as the handle.
         card.addEventListener('click', (e) => {
-            if (e.target.classList.contains('drag-handle')) return;
+            if (e.target.closest('.drag-handle')) return;
             startWorkout(group.id);
         });
 
@@ -469,6 +470,15 @@ function renderHome() {
             else if (action === 'archive') archiveRoutine(group.id);
             closeAllCardMenus();
         });
+
+        // Touch reorder (desktop uses the HTML5 drag handlers above)
+        const groupHandle = card.querySelector('.drag-handle');
+        if (groupHandle) {
+            enableTouchReorder(groupHandle, card, groupsList, '.group-card',
+                () => STATE.groups,
+                () => { saveData(); renderHome(); });
+        }
+
         groupsList.appendChild(card);
     });
 }
@@ -606,9 +616,9 @@ function renderEditExercises() {
         div.addEventListener('drop', handleDrop);
         div.addEventListener('dragend', handleDragEnd);
 
-        // Click to edit (ignore if clicking handle)
+        // Click to edit (ignore if clicking the handle or its inner icon)
         div.onclick = (e) => {
-            if (!e.target.classList.contains('drag-handle')) {
+            if (!e.target.closest('.drag-handle')) {
                 openExerciseModal(index);
             }
         };
@@ -625,6 +635,15 @@ function renderEditExercises() {
             <!-- Drag Handle -->
             <div class="drag-handle"><span class="material-icons-outlined">drag_indicator</span></div>
         `;
+
+        // Touch reorder (desktop uses the HTML5 drag handlers above)
+        const exHandle = div.querySelector('.drag-handle');
+        if (exHandle) {
+            enableTouchReorder(exHandle, div, editExerciseList, '.exercise-card',
+                () => tempExercises,
+                () => { renderEditExercises(); persistCurrentGroup(); });
+        }
+
         editExerciseList.appendChild(div);
     });
 }
@@ -708,6 +727,72 @@ function handleDragEnd(e) {
     this.classList.remove('dragging');
     removeIndicator();
 }
+
+// --- TOUCH REORDER (mobile) ---
+// The HTML5 drag API doesn't work on touch screens, so reorder via touch
+// events instead. Grab a card by its drag handle, drag it, drop into the gap
+// the indicator shows. Desktop mouse drag (above) is left untouched.
+let touchReorder = null;
+
+function enableTouchReorder(handle, card, listEl, itemSelector, getArr, onReorder) {
+    handle.addEventListener('touchstart', (e) => {
+        touchReorder = {
+            card, listEl, itemSelector, getArr, onReorder,
+            srcIndex: Number(card.dataset.index),
+            refIndex: null,
+            insertAfter: false
+        };
+        card.classList.add('dragging');
+        e.preventDefault(); // claim the gesture: no scroll/selection from the handle
+    }, { passive: false });
+}
+
+document.addEventListener('touchmove', (e) => {
+    if (!touchReorder) return;
+    e.preventDefault(); // suppress list scrolling while dragging
+    const t = e.touches[0];
+    if (!t) return;
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const overCard = el && el.closest(touchReorder.itemSelector);
+    // Ignore points outside this list or over the card being dragged
+    if (!overCard || overCard === touchReorder.card || !touchReorder.listEl.contains(overCard)) return;
+
+    const indicator = getOrCreateIndicator();
+    const rect = overCard.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    if (t.clientY < midY) {
+        overCard.parentNode.insertBefore(indicator, overCard);
+        touchReorder.insertAfter = false;
+    } else {
+        overCard.parentNode.insertBefore(indicator, overCard.nextSibling);
+        touchReorder.insertAfter = true;
+    }
+    touchReorder.refIndex = Number(overCard.dataset.index);
+}, { passive: false });
+
+function endTouchReorder(commit) {
+    if (!touchReorder) return;
+    const tr = touchReorder;
+    touchReorder = null;
+    tr.card.classList.remove('dragging');
+    removeIndicator();
+    if (!commit || tr.refIndex === null || tr.refIndex === tr.srcIndex) return;
+
+    // Mirror the mouse handleDrop math so touch and desktop reorder identically
+    const arr = tr.getArr();
+    const item = arr[tr.srcIndex];
+    if (item === undefined) return;
+    arr.splice(tr.srcIndex, 1);
+    let dropIndex = tr.refIndex;
+    if (tr.srcIndex < dropIndex) dropIndex--;
+    let insertAt = tr.insertAfter ? dropIndex + 1 : dropIndex;
+    insertAt = Math.max(0, Math.min(insertAt, arr.length));
+    arr.splice(insertAt, 0, item);
+    tr.onReorder();
+}
+
+document.addEventListener('touchend', () => endTouchReorder(true));
+document.addEventListener('touchcancel', () => endTouchReorder(false));
 
 window.editGroup = (id) => {
     STATE.editingGroupId = id;
