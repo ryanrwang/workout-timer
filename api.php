@@ -1,9 +1,11 @@
 <?php
 header('Content-Type: application/json');
+header('Cache-Control: no-store');
 
 $DATA_DIR = __DIR__ . '/data/users/';
 $COOKIE_NAME = 'wt_token';
 $COOKIE_DAYS = 365;
+$MAX_PAYLOAD_BYTES = 1048576; // 1 MB — real payloads are ~13 KB
 
 // Ensure data directory exists
 if (!is_dir($DATA_DIR)) {
@@ -13,9 +15,15 @@ if (!is_dir($DATA_DIR)) {
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Reject oversized request bodies before reading them
+if ($method === 'POST' && isset($_SERVER['CONTENT_LENGTH']) && (int)$_SERVER['CONTENT_LENGTH'] > $MAX_PAYLOAD_BYTES) {
+    respond(['error' => 'Payload too large'], 413);
+}
+
 // Helper: validate token format (hex only, 32 chars)
 function validToken($token) {
-    return preg_match('/^[a-f0-9]{32}$/', $token);
+    // is_string guards against array input via ?token[]=, cookies, or JSON bodies
+    return is_string($token) && preg_match('/^[a-f0-9]{32}$/', $token) === 1;
 }
 
 // Helper: get user file path
@@ -42,16 +50,19 @@ function readUser($token) {
 function writeUser($token, $userData) {
     $file = userFile($token);
     if (!$file) return false;
+    // Encode before truncating — an encode failure must not wipe the file
+    $json = json_encode($userData, JSON_PRETTY_PRINT);
+    if ($json === false) return false;
     $fp = fopen($file, 'c');
     if (!$fp) return false;
     flock($fp, LOCK_EX);
     ftruncate($fp, 0);
     rewind($fp);
-    fwrite($fp, json_encode($userData, JSON_PRETTY_PRINT));
+    $written = fwrite($fp, $json);
     fflush($fp);
     flock($fp, LOCK_UN);
     fclose($fp);
-    return true;
+    return $written === strlen($json);
 }
 
 // Helper: detect if connection is HTTPS (handles proxies)
@@ -108,8 +119,15 @@ switch ($action) {
         if ($method !== 'POST') respond(['error' => 'POST required'], 405);
 
         $input = json_decode(file_get_contents('php://input'), true);
-        $name = trim($input['name'] ?? '');
+        if (!is_array($input)) {
+            respond(['error' => 'Invalid JSON body'], 400);
+        }
+        $name = $input['name'] ?? '';
         $pin = $input['pin'] ?? '';
+        if (!is_string($name) || !is_string($pin)) {
+            respond(['error' => 'Invalid input'], 400);
+        }
+        $name = trim($name);
 
         if ($name === '' || strlen($name) > 50) {
             respond(['error' => 'Name required (max 50 chars)'], 400);
@@ -141,8 +159,14 @@ switch ($action) {
         if ($method !== 'POST') respond(['error' => 'POST required'], 405);
 
         $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            respond(['error' => 'Invalid JSON body'], 400);
+        }
         $token = $input['token'] ?? '';
         $pin = $input['pin'] ?? '';
+        if (!is_string($pin)) {
+            respond(['error' => 'Invalid input'], 400);
+        }
 
         if (!validToken($token)) {
             respond(['error' => 'Invalid token'], 400);
@@ -221,7 +245,7 @@ switch ($action) {
 
     // Logout (clear cookie)
     case 'logout':
-        setcookie('wt_token', '', [
+        setcookie($COOKIE_NAME, '', [
             'expires' => time() - 86400,
             'path' => '/',
             'httponly' => true,
