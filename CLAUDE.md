@@ -31,9 +31,9 @@ Vanilla JS/CSS/HTML workout routine manager with timer, drag-and-drop, and optio
 
 - **Routing**: Hash-based (`#home`, `#edit/{id}`, `#workout/{id}`). `_programmaticHashChanges` counter prevents race conditions with back button.
 - **State**: Runtime `STATE` object + `localStorage` for persistence. Key: `workoutTimerData`.
-- **Sync**: Debounced (500ms) save to server. Local data wins on conflict. Token stored in `syncToken` localStorage key.
+- **Sync**: Debounced (500ms) save to server, flushed on `pagehide`/`visibilitychange` via `sendBeacon` (iOS-safe). Local data wins on conflict. Token stored in `syncToken` localStorage key. Known limitation: no multi-tab coordination — two tabs open to the same account is last-write-wins.
 - **Audio**: Web Audio API oscillator chime (4-note Westminster). No audio files.
-- **Drag & drop**: Custom implementation for both exercise and group reordering.
+- **Drag & drop**: Custom implementation for both exercise and group reordering. Desktop uses the HTML5 drag API; touch screens use a parallel `touchstart`/`touchmove`/`touchend` path (`enableTouchReorder`) grabbed by the drag handle. No auto-scroll while touch-dragging (lists are short).
 
 ## Rules / Constraints
 
