@@ -247,6 +247,19 @@ function fetchLinkMetadata(url, index) {
         .catch(() => {});
 }
 
+// --- HELPER: HTML ESCAPING ---
+
+// User-entered strings (routine/exercise names, imported or synced data)
+// must be escaped before interpolation into innerHTML templates.
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // --- SHARED: PROGRESS PILLS ---
 
 function buildProgressPillsHtml(group, activeExIndex, completedSetsData) {
@@ -259,7 +272,7 @@ function buildProgressPillsHtml(group, activeExIndex, completedSetsData) {
             dots += `<span class="progress-dot${done ? ' done' : ''}"></span>`;
         }
         const isActive = idx === activeExIndex;
-        return `<span class="progress-pill${isActive ? ' active' : ''}">${ex.name}<span class="progress-dots">${dots}</span></span>`;
+        return `<span class="progress-pill${isActive ? ' active' : ''}">${escapeHtml(ex.name)}<span class="progress-dots">${dots}</span></span>`;
     }).join('');
 }
 
@@ -357,21 +370,40 @@ function renderHome() {
         card.innerHTML = `
             <div class="card-top-row">
                 <div class="drag-handle"><span class="material-icons-outlined">drag_indicator</span></div>
-                <div class="card-title${completedDateHtml ? ' is-completed' : ''}"><span class="card-name">${group.name} <span class="card-count">&bull; ${group.exercises.length}</span></span>${completedDateHtml}</div>
+                <div class="card-title${completedDateHtml ? ' is-completed' : ''}"><span class="card-name">${escapeHtml(group.name)} <span class="card-count">&bull; ${group.exercises.length}</span></span>${completedDateHtml}</div>
                 <div class="card-menu-wrapper">
-                    <button class="btn-icon card-menu-btn" onclick="event.stopPropagation(); toggleCardMenu(this)"><span class="material-icons-outlined">more_vert</span></button>
+                    <button class="btn-icon card-menu-btn" data-action="menu"><span class="material-icons-outlined">more_vert</span></button>
                     <div class="card-dropdown-menu hidden">
-                        <button class="dropdown-item" onclick="event.stopPropagation(); editGroup('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">edit</span> Edit</button>
-                        <button class="dropdown-item${hasProgress ? '' : ' disabled'}" onclick="event.stopPropagation(); ${hasProgress ? `resetRoutineProgress('${group.id}'); closeAllCardMenus()` : ''}" ${hasProgress ? '' : 'disabled'}><span class="material-icons-outlined">restart_alt</span> Reset</button>
-                        <button class="dropdown-item" onclick="event.stopPropagation(); completeRoutineProgress('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">check_circle</span> Complete</button>
-                        <button class="dropdown-item" onclick="event.stopPropagation(); openHistoryForWorkout('${group.id}', '${group.name.replace(/'/g, "\\'")}'); closeAllCardMenus()"><span class="material-icons-outlined">history</span> History</button>
+                        <button class="dropdown-item" data-action="edit"><span class="material-icons-outlined">edit</span> Edit</button>
+                        <button class="dropdown-item${hasProgress ? '' : ' disabled'}" data-action="reset" ${hasProgress ? '' : 'disabled'}><span class="material-icons-outlined">restart_alt</span> Reset</button>
+                        <button class="dropdown-item" data-action="complete"><span class="material-icons-outlined">check_circle</span> Complete</button>
+                        <button class="dropdown-item" data-action="history"><span class="material-icons-outlined">history</span> History</button>
                         <div class="dropdown-divider"></div>
-                        <button class="dropdown-item danger-text" onclick="event.stopPropagation(); archiveRoutine('${group.id}'); closeAllCardMenus()"><span class="material-icons-outlined">archive</span> Archive</button>
+                        <button class="dropdown-item danger-text" data-action="archive"><span class="material-icons-outlined">archive</span> Archive</button>
                     </div>
                 </div>
             </div>
             ${pillsHtml ? `<div class="ex-tags">${pillsHtml}</div>` : ''}
         `;
+
+        // Menu actions via delegation — closure over group, no ids/names in
+        // attribute JS strings (ids and names are user-controllable via import/sync)
+        card.querySelector('.card-menu-wrapper').addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return; // non-button clicks keep bubbling to the card (starts workout)
+            e.stopPropagation();
+            const action = btn.dataset.action;
+            if (action === 'menu') {
+                toggleCardMenu(btn);
+                return;
+            }
+            if (action === 'edit') editGroup(group.id);
+            else if (action === 'reset') resetRoutineProgress(group.id);
+            else if (action === 'complete') completeRoutineProgress(group.id);
+            else if (action === 'history') openHistoryForWorkout(group.id, group.name);
+            else if (action === 'archive') archiveRoutine(group.id);
+            closeAllCardMenus();
+        });
         groupsList.appendChild(card);
     });
 }
@@ -518,12 +550,12 @@ function renderEditExercises() {
 
         div.innerHTML = `
             <div class="thumb-wrapper">
-                <img src="${thumbUrl}" class="ex-thumb" alt="thumb">
-                <img src="${thumbUrl}" class="thumb-preview" alt="preview">
+                <img src="${escapeHtml(thumbUrl)}" class="ex-thumb" alt="thumb">
+                <img src="${escapeHtml(thumbUrl)}" class="thumb-preview" alt="preview">
             </div>
             <div class="ex-info">
-                <div class="card-title">${index + 1}. ${ex.name}</div>
-                <div class="card-meta">${ex.tool} • ${ex.weight} ${ex.unit || 'lbs'} • ${ex.sets}x${ex.reps}</div>
+                <div class="card-title">${index + 1}. ${escapeHtml(ex.name)}</div>
+                <div class="card-meta">${escapeHtml(ex.tool)} • ${escapeHtml(ex.weight)} ${escapeHtml(ex.unit || 'lbs')} • ${escapeHtml(ex.sets)}x${escapeHtml(ex.reps)}</div>
             </div>
             <!-- Drag Handle -->
             <div class="drag-handle"><span class="material-icons-outlined">drag_indicator</span></div>
@@ -1116,7 +1148,7 @@ function updateWorkoutUI() {
                 restCard.classList.add('rest-active');
                 restCard.innerHTML = `<span class="set-label">Rest</span><span class="set-number">●</span>`;
             } else {
-                restCard.innerHTML = `<span class="set-label">Rest</span><span class="set-number">${exercise.rest}s</span>`;
+                restCard.innerHTML = `<span class="set-label">Rest</span><span class="set-number">${escapeHtml(exercise.rest)}s</span>`;
             }
             setsContainer.appendChild(restCard);
         }
@@ -1935,8 +1967,8 @@ function renderHistory() {
         const ago = formatTimeAgo(d);
         div.innerHTML = `
             <div class="history-entry-header">
-                <span class="card-title">${entry.groupName}</span>
-                <span class="card-meta">${entry.duration}</span>
+                <span class="card-title">${escapeHtml(entry.groupName)}</span>
+                <span class="card-meta">${escapeHtml(entry.duration)}</span>
             </div>
             <div class="card-meta">${dateStr} at ${timeStr} &middot; <span class="history-entry-ago">${ago}</span></div>
         `;
@@ -2017,7 +2049,7 @@ function renderArchive() {
             <div class="archive-entry-row">
                 <input type="checkbox" class="archive-checkbox" data-idx="${idx}">
                 <div class="archive-entry-info">
-                    <span class="card-title">${group.name}</span>
+                    <span class="card-title">${escapeHtml(group.name)}</span>
                     ${dateStr ? `<span class="card-meta">Archived ${dateStr}</span>` : ''}
                 </div>
                 <div class="archive-entry-actions">
