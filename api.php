@@ -50,16 +50,19 @@ function readUser($token) {
 function writeUser($token, $userData) {
     $file = userFile($token);
     if (!$file) return false;
+    // Encode before truncating — an encode failure must not wipe the file
+    $json = json_encode($userData, JSON_PRETTY_PRINT);
+    if ($json === false) return false;
     $fp = fopen($file, 'c');
     if (!$fp) return false;
     flock($fp, LOCK_EX);
     ftruncate($fp, 0);
     rewind($fp);
-    fwrite($fp, json_encode($userData, JSON_PRETTY_PRINT));
+    $written = fwrite($fp, $json);
     fflush($fp);
     flock($fp, LOCK_UN);
     fclose($fp);
-    return true;
+    return $written === strlen($json);
 }
 
 // Helper: detect if connection is HTTPS (handles proxies)
