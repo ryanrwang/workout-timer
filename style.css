@@ -4,7 +4,10 @@
     --text-main: #ffffff;
     --text-muted: #a0a0a0;
     --primary: #00ff9d;
-    --primary-dim: #00cc7d;
+    --on-primary: #000;
+    /* Text/icons on a --primary background */
+    --menu-bg: #1a1a1a;
+    /* Dropdown / popover surface */
     --danger: #ff4d4d;
     --rest-color: #ffd700;
     /* Gold for Rest */
@@ -612,7 +615,7 @@ select:focus {
 }
 
 .btn-icon:hover {
-    color: var(--text-primary);
+    color: var(--text-main);
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -1050,7 +1053,7 @@ select:focus {
 
 .btn.primary {
     background: var(--primary);
-    color: #000;
+    color: var(--on-primary);
 }
 
 /* Flashing pulse for the action button when idle and waiting to start */
@@ -1071,7 +1074,7 @@ select:focus {
 
 .btn.secondary {
     background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    color: var(--text-main);
     transition: all 0.2s ease;
 }
 
@@ -1208,7 +1211,7 @@ select:focus {
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: #1a1a1a;
+    background: var(--menu-bg);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 10px;
     padding: 4px 0;
@@ -1289,7 +1292,7 @@ select:focus {
     position: absolute;
     top: 100%;
     right: 0;
-    background: #1a1a1a;
+    background: var(--menu-bg);
     border: var(--glass-border);
     border-radius: 10px;
     padding: 4px 0;
@@ -1352,7 +1355,7 @@ select:focus {
     position: absolute;
     top: 100%;
     right: 0;
-    background: #1a1a1a;
+    background: var(--menu-bg);
     border: var(--glass-border);
     border-radius: 10px;
     padding: 4px 0;
