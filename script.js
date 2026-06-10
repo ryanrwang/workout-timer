@@ -12,6 +12,8 @@ const SYNC = {
     name: null,
     enabled: false,
     _saveTimeout: null,
+    _dirty: false,     // unsaved local changes the server hasn't acknowledged
+    _inFlight: false,  // a syncSave fetch is currently running
 };
 
 // --- DOM ELEMENTS ---
@@ -95,17 +97,28 @@ function init() {
     checkSyncAuth().then(() => restoreFromHash());
 }
 
-// Flush any pending sync before the tab closes
-window.addEventListener('beforeunload', () => {
-    if (SYNC.enabled && SYNC._saveTimeout) {
-        clearTimeout(SYNC._saveTimeout);
-        const payload = JSON.stringify(buildSyncPayload());
-        // sendBeacon can't set headers, so pass token as query param
-        const url = SYNC.token
-            ? 'api.php?action=save&token=' + encodeURIComponent(SYNC.token)
-            : 'api.php?action=save';
-        navigator.sendBeacon(url, payload);
-    }
+// Flush any pending sync when the tab is closing or being hidden.
+// beforeunload alone is unreliable on iOS Safari, where pagehide and
+// visibilitychange->hidden are the events that actually fire on close.
+function flushPendingSync() {
+    if (!SYNC.enabled) return;
+    if (!SYNC._dirty && !SYNC._saveTimeout && !SYNC._inFlight) return;
+    clearTimeout(SYNC._saveTimeout);
+    SYNC._saveTimeout = null;
+    SYNC._dirty = false;
+    SYNC._inFlight = false;
+    const payload = JSON.stringify(buildSyncPayload());
+    // sendBeacon can't set headers, so pass token as query param
+    const url = SYNC.token
+        ? 'api.php?action=save&token=' + encodeURIComponent(SYNC.token)
+        : 'api.php?action=save';
+    navigator.sendBeacon(url, payload);
+}
+
+window.addEventListener('beforeunload', flushPendingSync);
+window.addEventListener('pagehide', flushPendingSync);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingSync();
 });
 
 // --- HASH-BASED STATE MANAGEMENT ---
@@ -2288,6 +2301,10 @@ function applySyncData(data) {
 async function syncSave() {
     if (!SYNC.enabled) return;
     setSyncingState(true);
+    // Clear dirty BEFORE building the payload: any edit landing during the
+    // fetch re-sets _dirty, so a success response can't mask a newer change.
+    SYNC._dirty = false;
+    SYNC._inFlight = true;
     try {
         const resp = await fetch('api.php?action=save', {
             method: 'POST',
@@ -2296,21 +2313,28 @@ async function syncSave() {
             credentials: 'same-origin'
         });
         if (!resp.ok) {
+            SYNC._dirty = true; // server rejected — keep trying on next change/flush
             const err = await resp.json().catch(() => ({}));
             console.warn('Sync save failed:', err.error || resp.status);
         }
     } catch (e) {
         // Network error — silent, localStorage is the fallback
+        SYNC._dirty = true;
         console.warn('Sync save network error:', e.message);
     } finally {
+        SYNC._inFlight = false;
         setSyncingState(false);
     }
 }
 
 function debouncedSyncSave() {
     if (!SYNC.enabled) return;
+    SYNC._dirty = true;
     clearTimeout(SYNC._saveTimeout);
-    SYNC._saveTimeout = setTimeout(syncSave, 500);
+    SYNC._saveTimeout = setTimeout(() => {
+        SYNC._saveTimeout = null; // null after firing so flush checks reflect reality
+        syncSave();
+    }, 500);
 }
 
 async function syncLoad() {
