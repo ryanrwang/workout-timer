@@ -2115,7 +2115,8 @@ window.restoreFromArchive = (idx) => {
 window.deleteFromArchive = (idx) => {
     if (idx < 0 || idx >= STATE.archived.length) return;
     if (!confirm(`Permanently delete "${STATE.archived[idx].name}"? This cannot be undone.`)) return;
-    STATE.archived.splice(idx, 1);
+    const removed = STATE.archived.splice(idx, 1)[0];
+    if (removed) clearWorkoutProgress(removed.id); // free the orphaned progress key
     saveData();
     renderArchive();
 };
@@ -2139,7 +2140,10 @@ document.getElementById('bulk-delete-btn').addEventListener('click', () => {
     const checked = getCheckedArchiveIndexes();
     if (checked.length === 0) return;
     if (!confirm(`Permanently delete ${checked.length} routine(s)? This cannot be undone.`)) return;
-    checked.sort((a, b) => b - a).forEach(idx => STATE.archived.splice(idx, 1));
+    checked.sort((a, b) => b - a).forEach(idx => {
+        const removed = STATE.archived.splice(idx, 1)[0];
+        if (removed) clearWorkoutProgress(removed.id); // free the orphaned progress key
+    });
     saveData();
     renderArchive();
 });
