@@ -4,48 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0d0d0d">
+    <meta name="description" content="Workout routine manager with set/rest timers, progress tracking, and optional cloud sync.">
     <title>Workout Timer</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined&display=block" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <style>
-    /* Push footer to bottom when content is short */
-    .app-container { min-height: 100dvh; }
-    main { flex: 1; }
-
-    /* Back-to-Apps logo */
-    .app-footer {
-        display: flex;
-        justify-content: center;
-        padding: 8px 0;
-    }
-    .rw-back-link {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .rw-back-logo {
-        width: 24px;
-        height: 24px;
-        opacity: 0.25;
-        transition: opacity 0.2s ease, transform 0.3s ease;
-    }
-    @media (hover: hover) {
-        .rw-back-logo:hover {
-            opacity: 0.6;
-        }
-        .app-footer .rw-back-logo:hover {
-            animation: rw-spin 0.6s ease;
-        }
-    }
-    @keyframes rw-spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-    </style>
 </head>
 
 <body>
@@ -180,7 +147,7 @@
     </div>
 
     <!-- MODAL: ADD/EDIT EXERCISE -->
-    <div id="exercise-modal" class="modal hidden">
+    <div id="exercise-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-content glass-panel">
             <h3 id="modal-title">Add Exercise</h3>
             <div class="form-grid">
@@ -243,10 +210,10 @@
     </div>
 
     <!-- MODAL: IMPORT/EXPORT -->
-    <div id="backup-modal" class="modal hidden">
+    <div id="backup-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="backup-title">
         <div class="modal-content glass-panel">
             <div class="modal-header">
-                <h3>Import / Export</h3>
+                <h3 id="backup-title">Import / Export</h3>
                 <button id="close-backup" class="close-btn"><span class="material-icons-outlined">close</span></button>
             </div>
             <p style="color: var(--text-muted); font-size: 0.9rem;">Save your data to a file or load from a backup.</p>
@@ -259,10 +226,10 @@
     </div>
 
     <!-- HISTORY MODAL -->
-    <div id="history-modal" class="modal hidden">
+    <div id="history-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="history-title">
         <div class="modal-content glass-panel history-modal-content">
             <div class="modal-header">
-                <h2>Workout History</h2>
+                <h2 id="history-title">Workout History</h2>
                 <button id="close-history" class="close-btn"><span class="material-icons-outlined">close</span></button>
             </div>
             <div id="history-filter" class="history-filter">
@@ -278,10 +245,10 @@
     </div>
 
     <!-- ARCHIVE MODAL -->
-    <div id="archive-modal" class="modal hidden">
+    <div id="archive-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="archive-title">
         <div class="modal-content glass-panel modal-wide">
             <div class="modal-header">
-                <h2>Archived Routines</h2>
+                <h2 id="archive-title">Archived Routines</h2>
                 <button id="close-archive" class="close-btn"><span class="material-icons-outlined">close</span></button>
             </div>
             <div class="archive-bulk-actions hidden" id="archive-bulk-actions">
@@ -299,10 +266,10 @@
     </div>
 
     <!-- MODAL: CLOUD SYNC -->
-    <div id="sync-modal" class="modal hidden">
+    <div id="sync-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="sync-title">
         <div class="modal-content glass-panel">
             <div class="modal-header">
-                <h3>Cloud Sync</h3>
+                <h3 id="sync-title">Cloud Sync</h3>
                 <button id="close-sync" class="close-btn"><span class="material-icons-outlined">close</span></button>
             </div>
 

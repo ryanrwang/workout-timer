@@ -4,7 +4,10 @@
     --text-main: #ffffff;
     --text-muted: #a0a0a0;
     --primary: #00ff9d;
-    --primary-dim: #00cc7d;
+    --on-primary: #000;
+    /* Text/icons on a --primary background */
+    --menu-bg: #1a1a1a;
+    /* Dropdown / popover surface */
     --danger: #ff4d4d;
     --rest-color: #ffd700;
     /* Gold for Rest */
@@ -612,7 +615,7 @@ select:focus {
 }
 
 .btn-icon:hover {
-    color: var(--text-primary);
+    color: var(--text-main);
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -1050,7 +1053,7 @@ select:focus {
 
 .btn.primary {
     background: var(--primary);
-    color: #000;
+    color: var(--on-primary);
 }
 
 /* Flashing pulse for the action button when idle and waiting to start */
@@ -1071,7 +1074,7 @@ select:focus {
 
 .btn.secondary {
     background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    color: var(--text-main);
     transition: all 0.2s ease;
 }
 
@@ -1208,7 +1211,7 @@ select:focus {
     top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: #1a1a1a;
+    background: var(--menu-bg);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 10px;
     padding: 4px 0;
@@ -1289,7 +1292,7 @@ select:focus {
     position: absolute;
     top: 100%;
     right: 0;
-    background: #1a1a1a;
+    background: var(--menu-bg);
     border: var(--glass-border);
     border-radius: 10px;
     padding: 4px 0;
@@ -1352,7 +1355,7 @@ select:focus {
     position: absolute;
     top: 100%;
     right: 0;
-    background: #1a1a1a;
+    background: var(--menu-bg);
     border: var(--glass-border);
     border-radius: 10px;
     padding: 4px 0;
@@ -1967,5 +1970,53 @@ select:focus {
     .modal-content {
         padding: 14px;
         gap: 12px;
+    }
+}
+
+/* --- Footer / back-to-apps (moved from index.html inline <style>) --- */
+/* Push footer to bottom when content is short */
+.app-container { min-height: 100dvh; }
+main { flex: 1; }
+
+/* Back-to-Apps logo */
+.app-footer {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+}
+.rw-back-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.rw-back-logo {
+    width: 24px;
+    height: 24px;
+    opacity: 0.25;
+    transition: opacity 0.2s ease, transform 0.3s ease;
+}
+@media (hover: hover) {
+    .rw-back-logo:hover {
+        opacity: 0.6;
+    }
+    .app-footer .rw-back-logo:hover {
+        animation: rw-spin 0.6s ease;
+    }
+}
+@keyframes rw-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Respect the OS reduced-motion preference: neutralize the continuous
+   animations (set-border-spin, idlePulse, btnPulse, sync spin, rw-spin)
+   and snap transitions. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }
