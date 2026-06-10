@@ -932,10 +932,28 @@ function getAudioContext() {
     return audioCtx;
 }
 
+// iOS Safari starts an AudioContext suspended unless it's created/resumed
+// inside a user gesture. The chime fires later, from a timer expiry (not a
+// gesture), so prime the context on the first pointer interaction of the
+// session. Stays registered (not once) to self-heal after the OS suspends
+// audio during a call/Siri interruption.
+function unlockAudioContext() {
+    try {
+        const ctx = getAudioContext();
+        if (ctx.state === 'suspended') ctx.resume();
+    } catch (e) {
+        // best-effort — audio is non-critical
+    }
+}
+document.addEventListener('pointerdown', unlockAudioContext, { capture: true, passive: true });
+
 function playChime() {
     if (audioMuted) return;
     try {
         const ctx = getAudioContext();
+        // Belt-and-braces: resume if a prior gesture didn't (also helps
+        // desktop Chrome's autoplay policy). No-op on iOS without a gesture.
+        if (ctx.state === 'suspended') ctx.resume();
         const gainNode = ctx.createGain();
         gainNode.gain.value = audioVolume;
         gainNode.connect(ctx.destination);
