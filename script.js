@@ -164,18 +164,40 @@ window.addEventListener('hashchange', () => {
     }
 });
 
+// Wrapper: localStorage.setItem that won't throw on quota-exceeded or
+// private-mode failures (data still lives in STATE / on the sync server)
+function safeSetItem(key, value) {
+    try {
+        localStorage.setItem(key, value);
+        return true;
+    } catch (e) {
+        console.warn('localStorage write failed:', key, e);
+        return false;
+    }
+}
+
 function loadData() {
     const data = localStorage.getItem('workoutTimerData');
     if (data) {
-        const parsed = JSON.parse(data);
-        STATE.groups = parsed.groups || [];
-        STATE.archived = parsed.archived || [];
-        STATE.history = parsed.history || [];
+        let parsed;
+        try {
+            parsed = JSON.parse(data);
+        } catch (e) {
+            // Corrupted blob — start empty rather than bricking init(); the
+            // first saveData() overwrites it, so don't delete (keep for forensics)
+            console.warn('Corrupted workoutTimerData, starting with empty state:', e);
+            return;
+        }
+        if (parsed && typeof parsed === 'object') {
+            STATE.groups = parsed.groups || [];
+            STATE.archived = parsed.archived || [];
+            STATE.history = parsed.history || [];
+        }
     }
 }
 
 function saveData() {
-    localStorage.setItem('workoutTimerData', JSON.stringify({
+    safeSetItem('workoutTimerData', JSON.stringify({
         groups: STATE.groups,
         archived: STATE.archived,
         history: STATE.history
@@ -186,7 +208,7 @@ function saveData() {
 function saveWorkoutProgress() {
     if (!STATE.activeWorkout) return;
     const { group, exIndex, setIndex, completedSets, completedRests, completedSetDurations, completedRestDurations } = STATE.activeWorkout;
-    localStorage.setItem('workoutProgress_' + group.id, JSON.stringify({
+    safeSetItem('workoutProgress_' + group.id, JSON.stringify({
         exIndex, setIndex, completedSets, completedRests, completedSetDurations, completedRestDurations,
         timestamp: Date.now()
     }));
@@ -195,8 +217,14 @@ function saveWorkoutProgress() {
 
 function loadWorkoutProgress(groupId) {
     const data = localStorage.getItem('workoutProgress_' + groupId);
-    if (data) return JSON.parse(data);
-    return null;
+    if (!data) return null;
+    try {
+        return JSON.parse(data);
+    } catch (e) {
+        // Corrupted progress — callers all null-guard, so home still renders
+        console.warn('Corrupted workout progress for', groupId, e);
+        return null;
+    }
 }
 
 function clearWorkoutProgress(groupId) {
@@ -1784,9 +1812,8 @@ exportBtn.addEventListener('click', () => {
     const filename = `workout_backup_${ts}.json`;
     const progress = {};
     STATE.groups.forEach(g => {
-        const key = 'workoutProgress_' + g.id;
-        const data = localStorage.getItem(key);
-        if (data) progress[g.id] = JSON.parse(data);
+        const p = loadWorkoutProgress(g.id);
+        if (p) progress[g.id] = p;
     });
 
     // Write globalRest on each group for backward compatibility with older versions
@@ -2201,8 +2228,8 @@ function setSyncingState(syncing) {
 function buildSyncPayload() {
     const progress = {};
     STATE.groups.forEach(g => {
-        const data = localStorage.getItem('workoutProgress_' + g.id);
-        if (data) progress[g.id] = JSON.parse(data);
+        const p = loadWorkoutProgress(g.id);
+        if (p) progress[g.id] = p;
     });
     return {
         groups: STATE.groups,
