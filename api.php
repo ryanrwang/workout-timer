@@ -1,9 +1,11 @@
 <?php
 header('Content-Type: application/json');
+header('Cache-Control: no-store');
 
 $DATA_DIR = __DIR__ . '/data/users/';
 $COOKIE_NAME = 'wt_token';
 $COOKIE_DAYS = 365;
+$MAX_PAYLOAD_BYTES = 1048576; // 1 MB — real payloads are ~13 KB
 
 // Ensure data directory exists
 if (!is_dir($DATA_DIR)) {
@@ -12,6 +14,11 @@ if (!is_dir($DATA_DIR)) {
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
+
+// Reject oversized request bodies before reading them
+if ($method === 'POST' && isset($_SERVER['CONTENT_LENGTH']) && (int)$_SERVER['CONTENT_LENGTH'] > $MAX_PAYLOAD_BYTES) {
+    respond(['error' => 'Payload too large'], 413);
+}
 
 // Helper: validate token format (hex only, 32 chars)
 function validToken($token) {
