@@ -2007,3 +2007,16 @@ main { flex: 1; }
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
+/* Respect the OS reduced-motion preference: neutralize the continuous
+   animations (set-border-spin, idlePulse, btnPulse, sync spin, rw-spin)
+   and snap transitions. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
