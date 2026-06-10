@@ -126,21 +126,31 @@ document.addEventListener('visibilitychange', () => {
 let _programmaticHashChanges = 0;
 
 function updateHash(hash) {
+    // Assigning location.hash a value equal to the current one fires NO
+    // hashchange event. Incrementing the counter in that case leaks a
+    // decrement that swallows a later genuine back-button press, so skip.
+    const target = String(hash).replace(/^#/, '');
+    const current = window.location.hash.replace(/^#/, '');
+    let decoded = current;
+    try { decoded = decodeURIComponent(current); } catch (e) { /* malformed escape */ }
+    if (target === current || target === decoded) return;
     // Track programmatic hash changes by count to avoid race conditions
     _programmaticHashChanges++;
-    window.location.hash = hash;
+    window.location.hash = target;
 }
 
 function restoreFromHash() {
     const hash = window.location.hash.replace('#', '');
-    if (!hash) return;
+    if (!hash || hash === 'home') return;
 
     const parts = hash.split('/');
+    let restored = false;
 
     if (parts[0] === 'edit' && parts[1]) {
         const groupId = parts[1];
         const group = STATE.groups.find(g => g.id === groupId);
         if (group) {
+            restored = true;
             STATE.editingGroupId = groupId;
             startEditing(true); // true = skip hash update (already set)
 
@@ -156,8 +166,15 @@ function restoreFromHash() {
         const groupId = parts[1];
         const group = STATE.groups.find(g => g.id === groupId);
         if (group && group.exercises.length > 0) {
+            restored = true;
             window.startWorkout(groupId, true);
         }
+    }
+
+    // Hash named a routine that no longer exists (deleted/shared stale link).
+    // Strip it without firing hashchange or touching the programmatic counter.
+    if (!restored) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
 }
 
@@ -169,6 +186,13 @@ window.addEventListener('hashchange', () => {
 
     const hash = window.location.hash.replace('#', '');
     if (!hash || hash === 'home') {
+        // Mirror the app-title cleanup: browser-back from an active workout
+        // must stop the interval and clear the workout, or a 100ms timer keeps
+        // running on the home view and a mid-rest chime can fire there.
+        if (STATE.activeWorkout) {
+            clearInterval(workoutTimerInterval);
+            STATE.activeWorkout = null;
+        }
         exerciseModal.classList.add('hidden');
         switchView('home', true);
         renderHome();
@@ -1075,6 +1099,7 @@ function formatSetDuration(sec) {
 }
 
 function updateWorkoutUI() {
+    if (!STATE.activeWorkout) return; // workout may have been cleared (e.g. async observer after navigating home)
     const { group, exIndex, setIndex, state, completedSets } = STATE.activeWorkout;
     const exercise = group.exercises[exIndex];
 
