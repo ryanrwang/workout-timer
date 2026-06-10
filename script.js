@@ -1838,6 +1838,7 @@ function finishWorkout() {
 
 // Reset All button — clears progress for all routines
 function resetAllProgress() {
+    if (!confirm('Reset progress for all routines? Completed sets shown on the home screen will be cleared.')) return;
     STATE.groups.forEach(group => {
         clearWorkoutProgress(group.id);
     });
