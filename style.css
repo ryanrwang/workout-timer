@@ -1972,3 +1972,38 @@ select:focus {
         gap: 12px;
     }
 }
+
+/* --- Footer / back-to-apps (moved from index.html inline <style>) --- */
+/* Push footer to bottom when content is short */
+.app-container { min-height: 100dvh; }
+main { flex: 1; }
+
+/* Back-to-Apps logo */
+.app-footer {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+}
+.rw-back-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.rw-back-logo {
+    width: 24px;
+    height: 24px;
+    opacity: 0.25;
+    transition: opacity 0.2s ease, transform 0.3s ease;
+}
+@media (hover: hover) {
+    .rw-back-logo:hover {
+        opacity: 0.6;
+    }
+    .app-footer .rw-back-logo:hover {
+        animation: rw-spin 0.6s ease;
+    }
+}
+@keyframes rw-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
