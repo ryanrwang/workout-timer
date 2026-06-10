@@ -15,7 +15,8 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 // Helper: validate token format (hex only, 32 chars)
 function validToken($token) {
-    return preg_match('/^[a-f0-9]{32}$/', $token);
+    // is_string guards against array input via ?token[]=, cookies, or JSON bodies
+    return is_string($token) && preg_match('/^[a-f0-9]{32}$/', $token) === 1;
 }
 
 // Helper: get user file path
@@ -108,8 +109,15 @@ switch ($action) {
         if ($method !== 'POST') respond(['error' => 'POST required'], 405);
 
         $input = json_decode(file_get_contents('php://input'), true);
-        $name = trim($input['name'] ?? '');
+        if (!is_array($input)) {
+            respond(['error' => 'Invalid JSON body'], 400);
+        }
+        $name = $input['name'] ?? '';
         $pin = $input['pin'] ?? '';
+        if (!is_string($name) || !is_string($pin)) {
+            respond(['error' => 'Invalid input'], 400);
+        }
+        $name = trim($name);
 
         if ($name === '' || strlen($name) > 50) {
             respond(['error' => 'Name required (max 50 chars)'], 400);
@@ -141,8 +149,14 @@ switch ($action) {
         if ($method !== 'POST') respond(['error' => 'POST required'], 405);
 
         $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            respond(['error' => 'Invalid JSON body'], 400);
+        }
         $token = $input['token'] ?? '';
         $pin = $input['pin'] ?? '';
+        if (!is_string($pin)) {
+            respond(['error' => 'Invalid input'], 400);
+        }
 
         if (!validToken($token)) {
             respond(['error' => 'Invalid token'], 400);
