@@ -126,9 +126,17 @@ document.addEventListener('visibilitychange', () => {
 let _programmaticHashChanges = 0;
 
 function updateHash(hash) {
+    // Assigning location.hash a value equal to the current one fires NO
+    // hashchange event. Incrementing the counter in that case leaks a
+    // decrement that swallows a later genuine back-button press, so skip.
+    const target = String(hash).replace(/^#/, '');
+    const current = window.location.hash.replace(/^#/, '');
+    let decoded = current;
+    try { decoded = decodeURIComponent(current); } catch (e) { /* malformed escape */ }
+    if (target === current || target === decoded) return;
     // Track programmatic hash changes by count to avoid race conditions
     _programmaticHashChanges++;
-    window.location.hash = hash;
+    window.location.hash = target;
 }
 
 function restoreFromHash() {
