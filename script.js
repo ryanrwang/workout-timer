@@ -703,7 +703,7 @@ window.completeRoutineProgress = (groupId) => {
         }
         return rests;
     });
-    localStorage.setItem('workoutProgress_' + groupId, JSON.stringify({
+    safeSetItem('workoutProgress_' + groupId, JSON.stringify({
         exIndex: group.exercises.length - 1,
         setIndex: parseInt(group.exercises[group.exercises.length - 1].sets) || 3,
         completedSets,
@@ -951,7 +951,7 @@ muteToggle.addEventListener('click', (e) => {
     e.stopPropagation();
     audioMuted = !audioMuted;
     muteToggle.innerHTML = audioMuted ? '<span class="material-icons-outlined">volume_off</span> Sound Off' : '<span class="material-icons-outlined">volume_up</span> Sound On';
-    localStorage.setItem('workoutAudioMuted', audioMuted);
+    safeSetItem('workoutAudioMuted', audioMuted);
 });
 
 // Card menu helpers
@@ -1871,7 +1871,7 @@ importFile.addEventListener('change', (e) => {
                 // Restore progress if present
                 if (parsed.progress) {
                     Object.keys(parsed.progress).forEach(groupId => {
-                        localStorage.setItem('workoutProgress_' + groupId, JSON.stringify(parsed.progress[groupId]));
+                        safeSetItem('workoutProgress_' + groupId, JSON.stringify(parsed.progress[groupId]));
                     });
                 }
 
@@ -2163,8 +2163,8 @@ function showSyncError(msg) {
 // Helper: persist sync token to localStorage + JS cookie (cookie fallback)
 function saveSyncToken(token, name) {
     if (token) {
-        localStorage.setItem('syncToken', token);
-        if (name) localStorage.setItem('syncName', name);
+        safeSetItem('syncToken', token);
+        if (name) safeSetItem('syncName', name);
         // Also set a JS-accessible cookie as fallback if localStorage is lost (e.g. origin change)
         document.cookie = 'wt_sync_token=' + token + ';path=/;max-age=' + (365 * 86400) + ';samesite=Lax';
         if (name) document.cookie = 'wt_sync_name=' + encodeURIComponent(name) + ';path=/;max-age=' + (365 * 86400) + ';samesite=Lax';
@@ -2191,8 +2191,8 @@ function getStoredSyncToken() {
     name = cookies['wt_sync_name'] ? decodeURIComponent(cookies['wt_sync_name']) : null;
     if (token) {
         // Restore to localStorage for next time
-        localStorage.setItem('syncToken', token);
-        if (name) localStorage.setItem('syncName', name);
+        safeSetItem('syncToken', token);
+        if (name) safeSetItem('syncName', name);
     }
     return { token, name };
 }
@@ -2264,12 +2264,12 @@ function applySyncData(data) {
     });
     if (data.progress) {
         Object.keys(data.progress).forEach(groupId => {
-            localStorage.setItem('workoutProgress_' + groupId, JSON.stringify(data.progress[groupId]));
+            safeSetItem('workoutProgress_' + groupId, JSON.stringify(data.progress[groupId]));
         });
     }
 
     // Update localStorage main data
-    localStorage.setItem('workoutTimerData', JSON.stringify({
+    safeSetItem('workoutTimerData', JSON.stringify({
         groups: STATE.groups,
         archived: STATE.archived,
         history: STATE.history
