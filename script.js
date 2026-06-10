@@ -1075,6 +1075,7 @@ function formatSetDuration(sec) {
 }
 
 function updateWorkoutUI() {
+    if (!STATE.activeWorkout) return; // workout may have been cleared (e.g. async observer after navigating home)
     const { group, exIndex, setIndex, state, completedSets } = STATE.activeWorkout;
     const exercise = group.exercises[exIndex];
 
