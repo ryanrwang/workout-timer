@@ -387,9 +387,10 @@ function renderHome() {
         card.className = 'group-card';
         card.draggable = true;
         card.dataset.index = idx;
-        // Click on main area (not buttons/handle) starts workout
+        // Click on main area (not buttons/handle) starts workout.
+        // closest() so a tap on the handle's inner icon span also counts as the handle.
         card.addEventListener('click', (e) => {
-            if (e.target.classList.contains('drag-handle')) return;
+            if (e.target.closest('.drag-handle')) return;
             startWorkout(group.id);
         });
 
@@ -606,9 +607,9 @@ function renderEditExercises() {
         div.addEventListener('drop', handleDrop);
         div.addEventListener('dragend', handleDragEnd);
 
-        // Click to edit (ignore if clicking handle)
+        // Click to edit (ignore if clicking the handle or its inner icon)
         div.onclick = (e) => {
-            if (!e.target.classList.contains('drag-handle')) {
+            if (!e.target.closest('.drag-handle')) {
                 openExerciseModal(index);
             }
         };
