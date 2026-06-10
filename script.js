@@ -177,6 +177,13 @@ window.addEventListener('hashchange', () => {
 
     const hash = window.location.hash.replace('#', '');
     if (!hash || hash === 'home') {
+        // Mirror the app-title cleanup: browser-back from an active workout
+        // must stop the interval and clear the workout, or a 100ms timer keeps
+        // running on the home view and a mid-rest chime can fire there.
+        if (STATE.activeWorkout) {
+            clearInterval(workoutTimerInterval);
+            STATE.activeWorkout = null;
+        }
         exerciseModal.classList.add('hidden');
         switchView('home', true);
         renderHome();
